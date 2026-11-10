@@ -1,0 +1,398 @@
+"""Gate-brace prototype scene (stage 1, physics only; not a submission).
+
+A small gate frame stands upright across the table 33 cm in front of the robots, its plane facing them (the y-z plane):
+the hinge stile (left, +y) is fixed; the top and bottom rails are pinned to it and to the latch stile (right, -y), so
+the frame is a parallelogram that racks. A steel weight on the latch stile makes the latch side drop onto a rubber
+stop (the gate has sagged). Four V-notch seats stand out from the frame's front face, one in each inside corner, each
+fixed to the rail it sits on. A loose brace with rounded ends fits between two diagonally opposite seats.
+
+BRACE_MODE (development): none | comp (brace written into the bottom-hinge / top-latch seats, frame square) |
+tens (brace in the top-hinge / bottom-latch seats, frame square) | table (brace on the table, the task's start).
+"""
+
+from __future__ import annotations
+
+import math
+import os
+import pathlib
+import sys
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+
+import numpy as np  # noqa: E402
+from partkit import Loop, Pin, PartState, env, part  # noqa: E402
+from yam_arena.task_file import TABLE_TOP  # noqa: E402
+
+SCENE = "station"
+TOP = TABLE_TOP[SCENE]
+SCORE_OVER = "end"
+INSTRUCTION = "prototype"
+
+# starting states: (hinge side +1 left / -1 right, sag mm, frame x offset mm, brace start (x, y) mm)
+_STATES = [(1, 14, 0, (200, 0)), (1, 12, 0, (200, 0)), (1, 16, 0, (200, 0)), (-1, 14, 0, (200, 0)), (-1, 12, 10, (200, 0)),
+           (-1, 16, -10, (200, 10)), (1, 14, 10, (190, -10)), (1, 13, -10, (210, 10)), (-1, 15, 0, (190, -10)),
+           (1, 15, 5, (200, 20))]
+K = int(os.environ.get("BRACE_STATE", "0"))
+SGN, _SAG_MM, _DX, _BSTART = _STATES[K]
+FX = 0.33 + _DX / 1000                           # frame plane (world x, m)
+Y_HINGE, Y_LATCH = SGN * 0.105, -SGN * 0.095      # stile centre lines (pin y), m
+Z_BOT, Z_TOP = 0.045, 0.165                       # pin heights above the table, m
+W, HGT = abs(Y_HINGE - Y_LATCH), Z_TOP - Z_BOT          # pin spacing along the rails, and between the rails (m)
+STILE = (0.015, 0.02, 0.15)                       # x (depth), y (width), z (length)
+RAIL = (0.015, 0.02)                              # x (depth), z (height); length spans the stiles
+DENS = 500.0                                      # pine, kg/m3
+WEIGHT_M = float(os.environ.get("BRACE_WEIGHT", "0.08"))   # latch weight, kg
+SAG = float(os.environ.get("BRACE_SAG", str(_SAG_MM / 1000)))          # the latch side rests this far below square on the stop (m)
+PIN_DAMP = float(os.environ.get("BRACE_PIN_DAMP", "0.002"))
+SEAT_DX = 0.035                                   # seats stand this far out of the frame's front face (m)
+SEAT_L, SEAT_T = 0.022, 0.003                     # V plate length and thickness (m)
+R_END = 0.0075                                    # brace end radius (m)
+R_SHAFT = 0.006
+CLEAR = float(os.environ.get("BRACE_CLEAR", "0.0008"))     # brace end clearance in the square frame (m)
+BRACE_M = 0.03
+GREEN, TAN, DARK, STEEL, PINE, RUBBER = (0.2, 0.5, 0.25), (0.8, 0.68, 0.45), (0.2, 0.2, 0.22), (0.4, 0.42, 0.45), \
+    (0.9, 0.78, 0.55), (0.08, 0.08, 0.08)
+FACE_X = FX - STILE[0] / 2                       # the frame's front face
+BRACE_X = FACE_X - SEAT_DX / 2                   # the brace's axis plane (centred in the seats' depth)
+
+# inside corners of the square frame (y, z) and the seats' V apexes there
+IN_Y = (Y_HINGE - SGN * STILE[1] / 2, Y_LATCH + SGN * STILE[1] / 2)
+IN_Z = (Z_BOT + RAIL[1] / 2, Z_TOP - RAIL[1] / 2)
+CORNERS = {"bh": (IN_Y[0], IN_Z[0]), "th": (IN_Y[0], IN_Z[1]), "bl": (IN_Y[1], IN_Z[0]), "tl": (IN_Y[1], IN_Z[1])}
+OPPOSITE = {"bh": "tl", "tl": "bh", "th": "bl", "bl": "th"}
+SEAT_RAIL = {"bh": "bottom_rail", "bl": "bottom_rail", "th": "top_rail", "tl": "top_rail"}
+
+
+def _qx(phi: float) -> tuple:
+    return (float(math.cos(phi / 2)), float(math.sin(phi / 2)), 0.0, 0.0)
+
+
+def _seat_boxes(key: str) -> list:
+    """The two plates of a 90-degree V notch at corner ``key``, opening along the square frame's diagonal towards
+    the opposite corner (world frame, m)."""
+    a = np.array(CORNERS[key])
+    u = np.array(CORNERS[OPPOSITE[key]]) - a
+    u /= np.linalg.norm(u)
+    out = []
+    for s in (-1, 1):
+        ang = s * math.pi / 4
+        d = np.array([u[0] * math.cos(ang) - u[1] * math.sin(ang), u[0] * math.sin(ang) + u[1] * math.cos(ang)])
+        n = np.array([-d[1], d[0]])
+        if n @ u > 0:
+            n = -n                                   # away from the inside of the V
+        c = a + d * SEAT_L / 2 + n * SEAT_T / 2
+        phi = math.atan2(d[1], d[0])                 # plate's long side along d (local y rotated about x)
+        out.append(((FACE_X - SEAT_DX / 2, c[0], c[1]), (SEAT_DX, SEAT_L, SEAT_T), PINE, _qx(phi)))
+    m = a + u * SEAT_L * 0.5                          # back plate behind the notch, against the frame face
+    out.append(((FACE_X - 0.001, m[0], m[1]), (0.002, SEAT_L * 1.2, SEAT_L * 1.2), PINE, _qx(math.atan2(u[1], u[0]))))
+    return out
+
+
+def _rail_boxes(z: float, keys) -> list:
+    y0, y1 = sorted((Y_LATCH - SGN * STILE[1] / 2, Y_HINGE + SGN * STILE[1] / 2))
+    out = [((FX, (y0 + y1) / 2, z), (RAIL[0], y1 - y0, RAIL[1]), GREEN)]
+    for k in keys:
+        out += _seat_boxes(k)
+    return out
+
+
+def _vol(size) -> float:
+    return float(np.prod(size))
+
+
+# world positions: the gate part's origin is the world origin of the table top (TOP), so part frame = world - TOP z
+def _w(v):
+    return (v[0], v[1], v[2])
+
+
+HINGE_BOXES = [((FX, Y_HINGE, (Z_BOT + Z_TOP) / 2), STILE, GREEN),
+               ((FX + 0.02, Y_HINGE + SGN * 0.02, 0.1), (0.02, 0.02, 0.2), TAN)]          # hinge post behind it
+rail_len = W + STILE[1]
+HANDLE = (0.012, 0.06, 0.012)                    # x, y (sticking out from the latch stile's outer face), z (m)
+HANDLE_Z = 0.10
+HANDLE_Y = Y_LATCH - SGN * (STILE[1] / 2 + HANDLE[1] / 2)
+rail_m = DENS * RAIL[0] * RAIL[1] * rail_len
+stile_m = DENS * _vol(STILE)
+PINS = [
+    Pin("top_rail", rest=(FX, (Y_HINGE + Y_LATCH) / 2, Z_TOP), anchor=(FX, Y_HINGE, Z_TOP), parent="body",
+        boxes=tuple(_rail_boxes(Z_TOP, ("th", "tl"))), axis="X", mass=rail_m, damping=PIN_DAMP, lower=-30, upper=30),
+    Pin("latch_stile", rest=(FX, Y_LATCH, (Z_BOT + Z_TOP) / 2), anchor=(FX, Y_LATCH, Z_TOP), parent="top_rail",
+        boxes=((( FX, Y_LATCH, (Z_BOT + Z_TOP) / 2), STILE, GREEN),
+               ((FX + 0.0175, Y_LATCH, (Z_BOT + Z_TOP) / 2), (0.02, 0.04, 0.02), STEEL),
+               ((FX, HANDLE_Y, HANDLE_Z), HANDLE, DARK)),
+        axis="X", mass=stile_m + WEIGHT_M, damping=PIN_DAMP, lower=-30, upper=30),
+    Pin("bottom_rail", rest=(FX, (Y_HINGE + Y_LATCH) / 2, Z_BOT), anchor=(FX, Y_HINGE, Z_BOT), parent="body",
+        boxes=tuple(_rail_boxes(Z_BOT, ("bh", "bl"))), axis="X", mass=rail_m, damping=PIN_DAMP, lower=-30, upper=30),
+]
+LOOPS = [Loop("latch_bottom", "bottom_rail", "latch_stile", anchor=(FX, Y_LATCH, Z_BOT), axis="X")]
+GATE = part("gate", pos=(0.0, 0.0, TOP), mass=0.2, fixed=True, friction=0.6, boxes=HINGE_BOXES, pins=PINS, loops=LOOPS)
+
+STOP_TOP = (Z_BOT + Z_TOP) / 2 - STILE[2] / 2 - SAG      # the latch stile's bottom rests here when sagged
+STOP = part("sag_stop", pos=(FX, Y_LATCH, TOP), mass=0.1, fixed=True, friction=0.9,
+            boxes=[((0, 0, STOP_TOP / 2), (0.03, 0.03, STOP_TOP), RUBBER)])
+
+
+def brace_length() -> float:
+    """Distance between the brace's end centres: seated in two opposite V notches of the square frame, less CLEAR."""
+    a, b = np.array(CORNERS["bh"]), np.array(CORNERS["tl"])
+    return float(np.linalg.norm(b - a) - 2 * R_END * math.sqrt(2) - CLEAR)
+
+
+BSTART = (_BSTART[0] / 1000, _BSTART[1] / 1000)
+
+
+L_BRACE = brace_length()
+MODE = os.environ.get("BRACE_MODE", "table")
+
+
+def _brace_part():
+    if MODE in ("comp", "tens"):                     # spawned seated (square frame): shaft as a rotated box
+        key = "bh" if MODE == "comp" else "th"
+        a, b = np.array(CORNERS[key]), np.array(CORNERS[OPPOSITE[key]])
+        u = (b - a) / np.linalg.norm(b - a)
+        mid = (a + b) / 2
+        phi = math.atan2(u[1], u[0])
+        e = u * L_BRACE / 2
+        return part("brace", pos=(float(BRACE_X), float(mid[0]), float(TOP + mid[1])), mass=BRACE_M, friction=0.6,
+                    boxes=[((0, 0, 0), (2 * R_SHAFT, L_BRACE, 2 * R_SHAFT), PINE, _qx(phi))],
+                    spheres=[((0.0, float(s * e[0]), float(s * e[1])), R_END, PINE) for s in (-1, 1)])
+    return part("brace", pos=(BSTART[0], BSTART[1], TOP + R_END), mass=BRACE_M, friction=0.6,
+                boxes=[((0, 0, 0), (0.008, L_BRACE * 0.6, 0.008), PINE)],
+                cylinders=[((0, 0, 0), R_SHAFT, L_BRACE, PINE, "Y")],
+                spheres=[((0, s * L_BRACE / 2, 0), R_END, PINE) for s in (-1, 1)])
+
+
+BRACE = _brace_part()
+OBJECTS = [GATE, STOP, BRACE] if MODE != "none" else [GATE, STOP]
+
+
+def seated_pose(key: str):
+    """World pose (pos, quat_xyzw) of the brace seated between corner ``key`` and its opposite, square frame."""
+    a, b = np.array(CORNERS[key]), np.array(CORNERS[OPPOSITE[key]])
+    u = (b - a) / np.linalg.norm(b - a)
+    ca = a + u * R_END * math.sqrt(2)
+    cb = b - u * R_END * math.sqrt(2)
+    mid = (ca + cb) / 2
+    phi = math.atan2(u[1], u[0])                     # brace local y onto u, rotating about x
+    return (BRACE_X, mid[0], TOP + mid[1]), (math.sin(phi / 2), 0.0, 0.0, math.cos(phi / 2))
+
+
+def sag_mm(gate_bodies) -> float:
+    """How far (mm) the latch stile's pins sit below their square height."""
+    p = gate_bodies["latch_stile"][0]
+    return float(((Z_BOT + Z_TOP) / 2 + TOP - p[2]) * 1000)
+
+
+
+# ---- measurement ---------------------------------------------------------------------------------------------------
+RAIL_REST = {"top_rail": (FX, (Y_HINGE + Y_LATCH) / 2, Z_TOP), "bottom_rail": (FX, (Y_HINGE + Y_LATCH) / 2, Z_BOT)}
+
+
+def seat_point_local(key: str) -> np.ndarray:
+    """Where a brace end's centre sits in corner ``key``'s notch (touching both faces), in its rail's frame (m)."""
+    a, b = np.array(CORNERS[key]), np.array(CORNERS[OPPOSITE[key]])
+    u = (b - a) / np.linalg.norm(b - a)
+    c = a + u * R_END * math.sqrt(2)
+    return np.array([BRACE_X, c[0], c[1]]) - np.array(RAIL_REST[SEAT_RAIL[key]])
+
+
+def _rot(q):
+    x, y, z, w = q
+    return np.array([[1 - 2 * (y * y + z * z), 2 * (x * y - w * z), 2 * (x * z + w * y)],
+                     [2 * (x * y + w * z), 1 - 2 * (x * x + z * z), 2 * (y * z - w * x)],
+                     [2 * (x * z - w * y), 2 * (y * z + w * x), 1 - 2 * (x * x + y * y)]])
+
+
+def seat_points_world(bodies) -> dict:
+    out = {}
+    for k in CORNERS:
+        p, q = bodies[SEAT_RAIL[k]]
+        out[k] = np.asarray(p) + _rot(q) @ seat_point_local(k)
+    return out
+
+
+def brace_ends(st) -> np.ndarray:
+    r = st.rotation()
+    return np.array([np.asarray(st.pos) + r @ np.array([0.0, s * L_BRACE / 2, 0.0]) for s in (-1, 1)])
+
+
+def measure(objects, bodies) -> dict:
+    """Sag (mm below square), each brace end's nearest seat and its distance (mm), whether the brace sits in two
+    diagonally opposite seats (both ends within SEATED_MM), and which diagonal."""
+    seats = seat_points_world(bodies)
+    rep = {"sag_mm": round(sag_mm(bodies), 2)}
+    if "brace" in objects:
+        ends = brace_ends(objects["brace"])
+        near = []
+        for e in ends:
+            k = min(seats, key=lambda kk: np.linalg.norm((seats[kk] - e)[1:]))
+            d = e - seats[k]
+            near.append((k, round(float(np.linalg.norm(d[1:])) * 1000, 2), round(float(d[0]) * 1000, 2)))
+        rep["ends"] = near                            # (seat, in-plane distance mm, x offset mm: + towards the frame)
+        pair = {near[0][0], near[1][0]}
+        x_ok = all(-(SEAT_DX - R_END) * 1000 - 0.5 <= n[2] - X_BACK_MM <= 0.5 for n in near)
+        rep["seated"] = (OPPOSITE[near[0][0]] == near[1][0]) and max(n[1] for n in near) <= SEATED_MM and x_ok
+        rep["diagonal"] = "comp" if pair == {"bh", "tl"} else ("tens" if pair == {"th", "bl"} else "other")
+    return rep
+
+
+SEATED_MM = 3.0
+X_BACK_MM = (FACE_X - 0.002 - R_END - BRACE_X) * 1000   # an end against a back plate sits this far behind BRACE_X
+
+
+SAMPLE_MM = 2.0                  # points on the robots' collision meshes at most this far apart along a triangle edge
+SNAP_MM = 0.1                    # sample points within this lattice step are merged (it moves a point at most 0.09 mm)
+# Any point of a mesh face lies within SAMPLE_MM / sqrt(3) (1.15 mm) of a sample point, plus at most 0.09 mm from the
+# merging, so a robot surface in contact with a bead has a sample point within 1.25 mm of the bead: under TOUCH_MM.
+CHUNK_MM = 30.0                  # the points are grouped in cubes this size, each with a bounding sphere, for speed
+_ROBOT_PTS: list = []
+
+
+def _sample_mesh(v: np.ndarray, counts, indices) -> np.ndarray:
+    """Points on a mesh's faces (fan-triangulated), on a barycentric grid at most SAMPLE_MM apart along each edge."""
+    counts, indices = np.asarray(counts), np.asarray(indices)
+    starts = np.r_[0, np.cumsum(counts)[:-1]]
+    t = [[], [], []]
+    for c in np.unique(counts):
+        s = starts[counts == c]
+        for j in range(1, c - 1):
+            t[0].append(indices[s])
+            t[1].append(indices[s + j])
+            t[2].append(indices[s + j + 1])
+    if not t[0]:
+        return np.zeros((0, 3))
+    p0, p1, p2 = (v[np.concatenate(k)] for k in t)
+    edge = np.max([np.linalg.norm(p1 - p0, axis=1), np.linalg.norm(p2 - p0, axis=1),
+                   np.linalg.norm(p2 - p1, axis=1)], axis=0)
+    n = np.maximum(1, np.ceil(edge * 1000 / SAMPLE_MM)).astype(int)
+    out = []
+    for k in np.unique(n):
+        sel = n == k
+        i_, j_ = np.triu_indices(k + 1)                          # i + j <= k
+        a, b = (i_ / k)[None, :, None], ((j_ - i_) / k)[None, :, None]
+        q0 = p0[sel][:, None, :]
+        out.append((q0 + a * (p1[sel][:, None, :] - q0) + b * (p2[sel][:, None, :] - q0)).reshape(-1, 3))
+    return np.concatenate(out)
+
+
+def _robot_points_local() -> list:
+    """For every rigid link of both robots (base, arm links, wrist, the gripper's palm and both fingers): points on its
+    collision meshes, about SAMPLE_MM apart, in the link's frame (m), grouped in CHUNK_MM cubes, each with a bounding
+    sphere. Read once from the stage (the meshes' placement in their link is fixed)."""
+    if _ROBOT_PTS:
+        return _ROBOT_PTS
+    from isaaclab.sim.utils.stage import get_current_stage
+    from pxr import Usd, UsdGeom, UsdPhysics
+
+    base = env().unwrapped
+    stage = get_current_stage()
+    cache = UsdGeom.XformCache()
+    for key in ("left_robot", "right_robot"):
+        names = list(base.scene[key].body_names)
+        root = stage.GetPrimAtPath(base.scene[key].cfg.prim_path.replace("env_[^/]+", "env_0"))
+        for link in Usd.PrimRange(root):
+            if not link.HasAPI(UsdPhysics.RigidBodyAPI) or link.GetName() not in names:
+                continue
+            pts, it = [], iter(Usd.PrimRange(link))
+            for prim in it:
+                if prim != link and prim.HasAPI(UsdPhysics.RigidBodyAPI):
+                    it.PruneChildren()                           # the next link's meshes are its own
+                    continue
+                if not (prim.IsA(UsdGeom.Mesh) and prim.HasAPI(UsdPhysics.CollisionAPI)):
+                    continue
+                mesh = UsdGeom.Mesh(prim)
+                m = np.array(cache.ComputeRelativeTransform(prim, link)[0], dtype=np.float64)   # row vectors
+                v = np.array(mesh.GetPointsAttr().Get(), dtype=np.float64)
+                v = (np.c_[v, np.ones(len(v))] @ m)[:, :3]
+                pts.append(_sample_mesh(v, mesh.GetFaceVertexCountsAttr().Get(), mesh.GetFaceVertexIndicesAttr().Get()))
+            if not pts:
+                continue
+            grid = SNAP_MM / 1000
+            pts = np.unique(np.round(np.concatenate(pts) / grid) * grid, axis=0)   # merge overlapping hulls' points
+            cube = np.floor(pts * 1000 / CHUNK_MM).astype(int)
+            _, label = np.unique(cube, axis=0, return_inverse=True)
+            label = label.ravel()
+            order = np.argsort(label, kind="stable")
+            pts, label = pts[order], label[order]
+            bounds = np.r_[0, np.flatnonzero(np.diff(label)) + 1, len(pts)]
+            centres, radii = [], []
+            for a, b in zip(bounds[:-1], bounds[1:]):
+                c = (pts[a:b].min(0) + pts[a:b].max(0)) / 2
+                centres.append(c)
+                radii.append(float(np.linalg.norm(pts[a:b] - c, axis=1).max()))
+            _ROBOT_PTS.append((key, link.GetName(), pts, np.array(centres), np.array(radii), bounds))
+    print("touch check: " + ", ".join(f"{k}/{n} {len(p)}" for k, n, p, *_ in _ROBOT_PTS) + " points", flush=True)
+    return _ROBOT_PTS
+
+
+def _quat_xyzw_matrix(q) -> np.ndarray:
+    x, y, z, w = q
+    return np.array([[1 - 2 * (y * y + z * z), 2 * (x * y - w * z), 2 * (x * z + w * y)],
+                     [2 * (x * y + w * z), 1 - 2 * (x * x + z * z), 2 * (y * z - w * x)],
+                     [2 * (x * z - w * y), 2 * (y * z + w * x), 1 - 2 * (x * x + y * y)]])
+
+
+def robot_shapes() -> list:
+    """Every link of both robots where it is now: (link name, its points' local coordinates, rotation, position (m,
+    env frame), its chunks' world centres and radii, chunk bounds); [] when offline."""
+    environment = env()
+    if environment is None:
+        return []
+    base = environment.unwrapped
+    local = _robot_points_local()
+    origin = getattr(base.scene.env_origins, "torch", base.scene.env_origins)[0].detach().cpu().numpy()
+    poses = {}
+    for key in ("left_robot", "right_robot"):
+        art = base.scene[key]
+        pos = getattr(art.data.body_pos_w, "torch", art.data.body_pos_w)[0].detach().cpu().numpy() - origin
+        quat = getattr(art.data.body_quat_w, "torch", art.data.body_quat_w)[0].detach().cpu().numpy()
+        poses[key] = (list(art.body_names), pos.astype(np.float64), quat.astype(np.float64))
+    out = []
+    for key, name, pts, centres, radii, bounds in local:
+        names, pos, quat = poses[key]
+        r, p = _quat_xyzw_matrix(quat[names.index(name)]), pos[names.index(name)]
+        out.append((f"{key}/{name}", pts, r, p, centres @ r.T + p, radii, bounds))
+    return out
+
+
+
+
+
+
+def score(objects) -> float:
+    return 0.0
+
+
+def success(objects) -> bool:
+    return False
+
+
+def _box_gap(world_pts, centre, rot, half) -> float:
+    loc = (world_pts - centre) @ rot
+    return float(np.linalg.norm(np.maximum(np.abs(loc) - half, 0), axis=1).min())
+
+
+def robot_gap_mm(shapes, objects, bodies) -> float:
+    """Smallest distance (mm) from any robot point to the brace (its bounding box) or to the latch stile, its weight
+    and handle, or either rail (their main boxes)."""
+    boxes = []
+    if "brace" in objects:
+        b = objects["brace"]
+        boxes.append((np.asarray(b.pos), b.rotation(), np.array([R_END, L_BRACE / 2 + R_END, R_END])))
+    p, q = bodies["latch_stile"]
+    r = _rot(q)
+    rest = np.array([FX, Y_LATCH, (Z_BOT + Z_TOP) / 2])
+    for c, s in (((FX, Y_LATCH, (Z_BOT + Z_TOP) / 2), STILE), ((FX + 0.0175, Y_LATCH, (Z_BOT + Z_TOP) / 2), (0.02, 0.04, 0.02)),
+                 ((FX, HANDLE_Y, HANDLE_Z), HANDLE)):
+        boxes.append((np.asarray(p) + r @ (np.array(c) - rest), r, np.array(s) / 2))
+    for name, rest_r in RAIL_REST.items():
+        p, q = bodies[name]
+        boxes.append((np.asarray(p), _rot(q), np.array([RAIL[0], W + STILE[1], RAIL[1]]) / 2))
+    best = math.inf
+    for _n, pts_l, r, p, centres, radii, bounds in shapes:
+        world = pts_l @ r.T + p
+        for c, rr, h in boxes:
+            if np.min(np.linalg.norm(centres - c, axis=1) - radii) > np.linalg.norm(h) + 0.05:
+                continue
+            best = min(best, _box_gap(world, c, rr, h) * 1000)
+    return best

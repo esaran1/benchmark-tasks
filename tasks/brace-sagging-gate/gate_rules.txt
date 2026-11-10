@@ -1,0 +1,4 @@
+Gate-brace G2 score rule, fixed before the batch (2026-11-10):
+score = 0 unless (a) brace seated in two diagonally opposite seats (both ends within 3 mm in-plane of their notch point, and within the seat depth), (b) no robot point within 20 mm of brace, latch stile/weight/handle or rails at the end, (c) sag range over the last 1 s <= 0.2 mm.
+Then by sag d (mm below square): d <= 3 -> 1.0; 3 < d <= 6 -> 0.5; 6 < d <= 9 -> 0.2; d > 9 -> 0.
+Expected: correct 1.0; comp_nolift, tens_nolift, tens_lift, lift_only, none 0 (sag 14 / not seated); hold 0 (robot on handle).

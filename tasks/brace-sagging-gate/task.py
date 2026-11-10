@@ -1,13 +1,18 @@
-"""Gate-brace prototype scene (stage 1, physics only; not a submission).
+"""Brace a sagging garden gate: fit the loose brace so the gate holds its latch side up by itself.
 
-A small gate frame stands upright across the table 33 cm in front of the robots, its plane facing them (the y-z plane):
-the hinge stile (left, +y) is fixed; the top and bottom rails are pinned to it and to the latch stile (right, -y), so
-the frame is a parallelogram that racks. A steel weight on the latch stile makes the latch side drop onto a rubber
-stop (the gate has sagged). Four V-notch seats stand out from the frame's front face, one in each inside corner, each
-fixed to the rail it sits on. A loose brace with rounded ends fits between two diagonally opposite seats.
+A small gate frame (pine, 200 x 150 mm) stands upright across the table 33 cm in front of the robots, its face towards
+them. The hinge-side stile is fixed to a post; the top and bottom rails are pinned to both stiles, so the frame is a
+parallelogram that racks. A steel weight on the latch-side stile has pulled that side down onto a rubber stop: the gate
+has sagged. Four V-notch seats stand out from the frame's front face, one in each inside corner, each fixed to the rail
+it sits on. A loose pine brace with rounded ends (183.9 mm between its end centres) lies on the table. It fits between
+two diagonally opposite seats only when the frame is square. It is a push-only member: it can hold the gate square only
+on the diagonal where the gate's weight pushes its ends together (the bottom hinge-side corner to the top latch-side
+corner), so the latch side has to be lifted square, the brace fitted on that diagonal, and the gate lowered onto it.
 
-BRACE_MODE (development): none | comp (brace written into the bottom-hinge / top-latch seats, frame square) |
-tens (brace in the top-hinge / bottom-latch seats, frame square) | table (brace on the table, the task's start).
+Run it:  inspect-robots run --embodiment yam_arena -E task=task.py --scorer task_score ...
+BRACE_STATE=k (0-9; default 0, the task's layout) mirrors the gate, changes the sag and moves the frame and brace;
+states 1-9 are the gap test's other starting states (README, Gap test). BRACE_MODE (development only): table (the
+task's start, default) | none (no brace) | comp / tens (brace written into the seats of one diagonal, frame square).
 """
 
 from __future__ import annotations
@@ -20,13 +25,15 @@ import sys
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
 import numpy as np  # noqa: E402
-from partkit import Loop, Pin, PartState, env, part  # noqa: E402
+from partkit import Loop, Pin, PartState, env, on_reset, on_step, part  # noqa: E402
 from yam_arena.task_file import TABLE_TOP  # noqa: E402
 
 SCENE = "station"
 TOP = TABLE_TOP[SCENE]
 SCORE_OVER = "end"
-INSTRUCTION = "prototype"
+INSTRUCTION = ("The garden gate has sagged: its latch side has dropped onto the rubber stop. Fit the loose wooden brace "
+               "between two of the corner seats so that the gate holds itself up, with the top of the latch-side stile no "
+               "more than 3 mm from level with the top of the hinge-side stile, then let go of the gate and the brace.")
 
 # starting states: (hinge side +1 left / -1 right, sag mm, frame x offset mm, brace start (x, y) mm)
 _STATES = [(1, 14, 0, (200, 0)), (1, 12, 0, (200, 0)), (1, 16, 0, (200, 0)), (-1, 14, 0, (200, 0)), (-1, 12, 10, (200, 0)),
@@ -243,7 +250,7 @@ X_BACK_MM = (FACE_X - 0.002 - R_END - BRACE_X) * 1000   # an end against a back 
 SAMPLE_MM = 2.0                  # points on the robots' collision meshes at most this far apart along a triangle edge
 SNAP_MM = 0.1                    # sample points within this lattice step are merged (it moves a point at most 0.09 mm)
 # Any point of a mesh face lies within SAMPLE_MM / sqrt(3) (1.15 mm) of a sample point, plus at most 0.09 mm from the
-# merging, so a robot surface in contact with a bead has a sample point within 1.25 mm of the bead: under TOUCH_MM.
+# merging, so a robot surface touching a part has a sample point within 1.25 mm of it: well under RELEASE_MM.
 CHUNK_MM = 30.0                  # the points are grouped in cubes this size, each with a bounding sphere, for speed
 _ROBOT_PTS: list = []
 
@@ -359,14 +366,6 @@ def robot_shapes() -> list:
 
 
 
-def score(objects) -> float:
-    return 0.0
-
-
-def success(objects) -> bool:
-    return False
-
-
 def _box_gap(world_pts, centre, rot, half) -> float:
     loc = (world_pts - centre) @ rot
     return float(np.linalg.norm(np.maximum(np.abs(loc) - half, 0), axis=1).min())
@@ -396,3 +395,80 @@ def robot_gap_mm(shapes, objects, bodies) -> float:
                 continue
             best = min(best, _box_gap(world, c, rr, h) * 1000)
     return best
+
+
+# ---- score ---------------------------------------------------------------------------------------------------------
+RELEASE_MM = 20.0       # counts only with no robot point within this of the brace, the latch stile (with its weight
+                        # and handle) or either rail (mm) ...
+STILL_MM = 0.2          # ... and the sag changed by no more than this over the last HOLD_STEPS steps (mm)
+HOLD_STEPS = 20         # 1 s at 20 Hz; success: full score held this long
+SAG_BANDS = ((3.0, 1.0), (6.0, 0.5), (9.0, 0.2))   # (latch side within this of square (mm), score)
+
+_STATE: dict = {}
+
+
+def _reset_state(environment=None) -> None:
+    _STATE.update(step=0, scored=None, last=(0.0, False), sags=[], full_steps=0, report={})
+
+
+on_reset(_reset_state)
+on_step(lambda environment=None: _STATE.__setitem__("step", _STATE["step"] + 1))
+_reset_state()
+
+
+def sag_score(sag: float) -> float:
+    for limit, sc in SAG_BANDS:
+        if abs(sag) <= limit:
+            return sc
+    return 0.0
+
+
+def evaluate(objects, bodies=None, shapes=None) -> dict:
+    """Every check, and the score."""
+    environment = env()
+    if bodies is None:
+        if environment is None:
+            return {"score": 0.0}
+        from partkit import body_poses
+        bodies = body_poses(environment, "gate")
+    shapes = robot_shapes() if shapes is None else shapes
+    rep = measure(objects, bodies)
+    sags = _STATE["sags"]
+    if _STATE.get("sag_step") != _STATE["step"]:
+        _STATE["sag_step"] = _STATE["step"]
+        sags.append(rep["sag_mm"])
+        del sags[:-(HOLD_STEPS + 1)]
+    gap = robot_gap_mm(shapes, objects, bodies)
+    rep["robot_mm"] = round(gap, 1) if math.isfinite(gap) else None
+    rep["released"] = gap >= RELEASE_MM
+    rep["still"] = len(sags) == HOLD_STEPS + 1 and max(sags) - min(sags) <= STILL_MM
+    rep["sag_score"] = sag_score(rep["sag_mm"])
+    ok = bool(rep.get("seated")) and rep["released"] and rep["still"]
+    rep["score"] = rep["sag_score"] if ok else 0.0
+    return rep
+
+
+def _update(objects) -> tuple[float, bool]:
+    if _STATE["scored"] == _STATE["step"]:
+        return _STATE["last"]
+    _STATE["scored"] = _STATE["step"]
+    rep = evaluate(objects)
+    sc = rep["score"]
+    _STATE["full_steps"] = _STATE["full_steps"] + 1 if sc >= 1.0 else 0
+    _STATE["report"] = rep
+    _STATE["last"] = (sc, _STATE["full_steps"] >= HOLD_STEPS)
+    return _STATE["last"]
+
+
+def success(objects) -> bool:
+    """Full score held for 1 s."""
+    return _update(objects)[1]
+
+
+def score(objects) -> float:
+    """0 unless the brace sits in two diagonally opposite seats (each end within 3 mm of its notch, in the seat's depth),
+    no robot point is within 20 mm of the brace, the latch-side stile (with its weight and handle) or either rail, and the
+    latch side moved no more than 0.2 mm over the last second. Then, by how far the latch side sits from square (the
+    top of the latch-side stile against the top of the hinge-side stile): within 3 mm 1.0, within 6 mm 0.5, within
+    9 mm 0.2, further 0."""
+    return _update(objects)[0]

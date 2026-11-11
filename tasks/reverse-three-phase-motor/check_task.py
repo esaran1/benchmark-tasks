@@ -117,8 +117,12 @@ scoring = [f"tape marks {g(T.IN_MM)} mm and {g(T.HOME_MM)} mm from its tip",
            f"centre within {g(T.LINE_MM)} mm of the socket's centre line sideways",
            f"pointing into it within {g(ang)} degrees",
            "its centre at most 5 mm above the opening's top",
-           f"no part of either robot is within {g(T.RELEASE_MM)} mm of the terminal box, the gland or any lead",
-           f"no plug moved more than {g(T.STILL_MM)} mm over the last second",
+           f"The plugs are measured once, when the robot, having touched a plug or lead (sim: a robot point within "
+           f"{g(T.TOUCH_MM)} mm), has been clear for {g(T.HOLD_STEPS / T.HZ)} s",
+           f"no part of either robot within {g(T.RELEASE_MM)} mm of the terminal box, the gland or any lead",
+           f"no plug moving more than {g(T.STILL_MM)} mm over that second", "it is what is scored",
+           f"If the robot comes back within {g(T.RELEASE_MM)} mm, the measurement is dropped",
+           "The supply is switched on only if the measurement has all three plugs home",
            f"the belt has carried the tote wholly past the green (forward) line ({mm(T.FWD_MOVE)} mm forward)", "otherwise 0.5",
            f"at {g(T.TOTE_SPEED)} m/s", f"1.0 for {g(T.HOLD_STEPS / T.HZ)} s"]
 for p in scoring:
@@ -127,8 +131,12 @@ readme_scoring = [f"{g(T.IN_MM)} mm and {g(T.HOME_MM)} mm from its tip",
                   f"its centre within {g(T.LINE_MM)} mm of the socket's centre line",
                   f"pointing into the socket within {g(ang)} degrees",
                   "its centre at most 5 mm above the opening's top",
-                  f"no part of either robot is within {g(T.RELEASE_MM)} mm of the terminal box, the gland or any lead",
-                  f"no plug moved more than {g(T.STILL_MM)} mm over the last second",
+                  f"having touched a plug or a lead (a robot point within {g(T.TOUCH_MM)} mm of one), has been clear for "
+                  f"{g(T.HOLD_STEPS / T.HZ)} s",
+                  f"no part of either robot within {g(T.RELEASE_MM)} mm of the terminal box, the gland or any lead",
+                  f"no plug moving more than {g(T.STILL_MM)} mm over that second", "That measurement is what is scored",
+                  f"If the robot comes back within {g(T.RELEASE_MM)} mm, the measurement is dropped",
+                  "only if the measurement has all three plugs home",
                   f"{mm(T.FWD_MOVE)} mm forward of where it started", "otherwise **0.5**",
                   f"the tote at {g(T.TOTE_SPEED)} m/s, up to {mm(T.TOTE_STOP)} mm either way",
                   f"once the score has been 1.0 for {g(T.HOLD_STEPS / T.HZ)} s"]
@@ -138,9 +146,10 @@ if abs(T.FWD_MOVE - (T.LINE_Y + T.TOTE[1] / 2)) > 1e-12:
     bad.append("FWD_MOVE is not the distance for the tote's trailing face to pass the green line")
 
 # -- fidelity --------------------------------------------------------------------------------------------------------
-fid = ["not simulated electrically", "computed from the lead order", f"slider at {g(T.TOTE_SPEED)} m/s", "fully plastic, a simplification: no restoring force",
-       f"{T.LEAD_OBJS[0].segments} rigid {cm(T.SEG)} cm segments",
-       f"sockets {mm(T.CAV_W)} x {mm(T.CAV_H)} mm for a {mm(T.PW)} x {mm(T.PH)} mm plug"]
+fid = ["Not simulated electrically", "computed from the lead order", f"slider at {g(T.TOTE_SPEED)} m/s",
+       "fully plastic (a simplification)", f"{T.LEAD_OBJS[0].segments} rigid {cm(T.SEG)} cm segments",
+       "no electrical contact pins or latch", f"sockets {mm(T.CAV_W)} x {mm(T.CAV_H)} mm, plug {mm(T.PW)} x {mm(T.PH)} mm",
+       "creep about 0.07-0.09 mm/s after release (a sim artifact); scoring uses the depths at release"]
 for p in fid:
     need(J["fidelity"], "task.json fidelity", p)
 for p in [f"chains of {T.LEAD_OBJS[0].segments} rigid {cm(T.SEG)} cm segments with bending springs "
@@ -172,12 +181,20 @@ def _objs(where) -> dict:
     return {f"lead_{n}": _lead_at(*w) for n, w in zip(T.LEADS, where)}
 
 
-def _rep(where, released=True, still=True, tote_mm=0.0, touched=True):
+def _rep(where, released=True, still=True, tote_mm=0.0, touched=True, latched_at=None):
+    """Score the plugs at ``where`` as if they had been measured (latched) there, or at ``latched_at`` (the plugs have
+    moved since); no latch unless the robot had touched, was clear and the plugs still (the latch conditions)."""
     rep = T.measure(_objs(where))
     rep.update(released=released, still=still, touched=touched,
                past_forward_line=tote_mm / 1000 >= T.FWD_MOVE - 1e-9)
+    ok = touched and released and still
+    rep["latched"] = (T.latch_of(T.measure(_objs(latched_at))) if latched_at else T.latch_of(rep)) if ok else None
     return rep, T.score_of(rep)
 
+
+# no measurement, no score (whatever the plugs and the tote show)
+if T.score_of({"latched": None, "past_forward_line": True}) != 0.0:
+    bad.append("score_of is not 0 without a latched measurement")
 
 # every order of the three leads: odd (one swap) -> reversing, even (start, cyclic) -> not
 for perm in itertools.permutations(range(3)):
@@ -198,6 +215,9 @@ for where, tote, kw, want in [
         ([(2, 24.0, 0.0, T.LINE_DEG - 0.1), (1, 24.0), (0, 24.0)], 130, {}, 1.0),
         ([(2, 24.0, 0.0, T.LINE_DEG + 0.1), (1, 24.0), (0, 24.0)], 130, {}, 0.0),
         ([(1, 24.0), (2, 24.0), (0, 24.0)], 130, {}, 0.0),            # cyclic shift
+        # latched at 14.9 mm (not home), the plug has crept to 16 mm since: still 0.5; latched home, crept out: 1.0
+        ([(2, 16.0), (1, 24.0), (0, 24.0)], 130, {"latched_at": [(2, T.HOME_MM - 0.1), (1, 24.0), (0, 24.0)]}, 0.5),
+        ([(2, 9.0), (1, 24.0), (0, 24.0)], 130, {"latched_at": [(2, 24.0), (1, 24.0), (0, 24.0)]}, 1.0),
         ([(0, 24.0), (1, 24.0), (2, 24.0)], 130, {}, 0.0)]:          # unchanged
     sc = _rep(where, tote_mm=tote, **kw)[1]
     if sc != want:

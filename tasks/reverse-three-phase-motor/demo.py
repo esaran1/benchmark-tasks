@@ -11,6 +11,8 @@ slipped in the fingers. Then the robot waits clear of everything while the teste
 Environment: DEMO_VARIANT selects a failure variant (README, Scripted demo):
   cyclic      move all three leads one socket along (U->V, V->W, W->U): the phase sequence is unchanged
   half_home   the correct swap, but the last plug pushed in only to 11 mm (in its socket, not home)
+  half_home13 the same, pushed in to 12.5 mm (it is about 13 to 14 mm in when measured, just short of home)
+  reenter     the correct swap; once the supply is on, the left arm reaches back over the terminal box for 2 s, then leaves
   unplug_one  the correct swap, but the last plug left lying on the table in front of its socket
   hold        the correct swap, but the left arm keeps hold of the last plug
   none        nothing moved
@@ -276,14 +278,14 @@ def strategy(ctx, arms, name):
     yield from pick(ctx, L, u)
     yield from L.move(hold_l, duration=1.5)
     yield from move_plug(ctx, Rt, w, 0, park_r)            # W's plug into U
-    last_seat = 0.011 if name == "half_home" else SEAT_TO
+    last_seat = {"half_home": 0.011, "half_home13": 0.0125}.get(name, SEAT_TO)
     yield from carry_to(ctx, L, 2, duration=2.5)
-    if name == "unplug_one":                               # lay it on the table, tip 10 mm short of W
+    if name == "unplug_one":                               # lay it on the table, tip 6 mm short of W
         R = T.drive_rot()
         ax = R[:, 0]
         p, _a = ctx.plug(u)
         off = (L.tcp() - p)[:2] @ ax[:2]
-        g = T.socket_mouth(2) + ax * (-0.010 - T.PL / 2 + off)
+        g = T.socket_mouth(2) + ax * (-0.006 - T.PL / 2 + off)
         g[2] = _gz(T)
         yield from L.move(g + [0, 0, CARRY], duration=0.6)
         yield from L.move(g, duration=0.8)
@@ -295,6 +297,18 @@ def strategy(ctx, arms, name):
         yield from wait(6.0)
         return
     yield from let_go(ctx, L, park_l)
+    if name == "reenter":                                  # wait for the supply, then come back over the box for 2 s
+        for _ in range(10 * HZ):
+            if T._STATE["powered"]:
+                break
+            yield
+        yield from wait(0.5)
+        over = T.to_world((T.BOX_D / 2, 0.06, T.BOX_H + 0.03))
+        yield from L.move(over + [0, 0, 0.05], duration=1.2)
+        yield from L.move(over, duration=0.8)
+        yield from wait(2.0)
+        yield from L.move(over + [0, 0, 0.05], duration=0.8)
+        yield from L.move(park_l, duration=1.5)
     yield from wait(1.0)
 
 
@@ -310,7 +324,7 @@ def _write_mp4(frames, path: Path) -> None:
     proc.wait()
 
 
-def run(task_path: str, out_dir: str, max_steps: int = 1800, record: bool = True, hold_s: float = 5.0) -> dict:
+def run(task_path: str, out_dir: str, max_steps: int = 1800, record: bool = True, hold_s: float = math.inf) -> dict:
     from inspect_robots import Scene
     from inspect_robots.types import Action
     from inspect_robots_yam.packing import pack
@@ -340,7 +354,7 @@ def run(task_path: str, out_dir: str, max_steps: int = 1800, record: bool = True
     import time
 
     t0 = time.time()
-    steps, ended, success, info = 0, None, False, {}
+    steps, ended, success, info, trace = 0, None, False, {}, []
     debug = os.environ.get("DEMO_DEBUG")
     while steps < max_steps:
         try:
@@ -351,6 +365,12 @@ def run(task_path: str, out_dir: str, max_steps: int = 1800, record: bool = True
         steps += 1
         info = res.info
         snap(res.observation)
+        if steps % 20 == 0:                   # every 1 s: scored plug depths now and as latched, score, supply
+            rp = T._STATE["report"]
+            la = rp.get("latched")
+            trace.append([steps, info.get("score"), {n: v[1] for n, v in rp.get("leads", {}).items()},
+                          {n: v[1] for n, v in la["leads"].items()} if la else None, rp.get("robot_mm"),
+                          rp.get("powered"), rp.get("tote_mm")])
         if steps % 100 == 0 or (debug and steps % 10 == 0):
             print(f"step {steps} score {info.get('score')} report {json.dumps(T._STATE['report'], default=str)}",
                   flush=True)
@@ -364,6 +384,7 @@ def run(task_path: str, out_dir: str, max_steps: int = 1800, record: bool = True
             break
     score = 1.0 if success else float(info.get("score", 0.0) or 0.0)
     result = {"task_score": score, "success": success, "steps": steps, "script_end_step": ended, "variant": variant,
+              "trace": trace,
               "state": T.K, "report": T._STATE["report"], "loop_wall_s": round(time.time() - t0, 1)}
     if record:
         import imageio

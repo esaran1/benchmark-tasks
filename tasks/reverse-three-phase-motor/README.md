@@ -186,30 +186,36 @@ enter (it was carried 1.3 mm high and drifted 3 to 4.5 mm sideways).
 line sideways, pointing into the socket within 25 degrees, and not above the opening: its centre at most 5 mm above
 the opening's top) and its 8 mm mark is inside the face; it is **home** when its 15 mm mark is inside too.
 
-- **0** unless all of these hold:
-  - the robot has touched a plug or lead at some point in the trial;
-  - no part of either robot is within 20 mm of the terminal box, the gland or any lead (plug or cable);
-  - no plug moved more than 1 mm over the last second;
-  - each of the three plugs is in a different socket;
+**When the plugs are measured.** Once, at release: when the robot, having touched a plug or a lead (a robot point within
+2 mm of one), has been clear for 1 s, meaning no part of either robot within 20 mm of the terminal box, the gland or any
+lead (plug or cable), and no plug moving more than 1 mm over that second. This is the operator's check before switching
+on: they read each plug's depth marks (or use a ruler) and note which plug is in which socket. That measurement is what
+is scored; the plugs are not measured again while it stands. If the robot comes back within 20 mm, the measurement is
+dropped (the score returns to 0 and the supply goes off, the tote stopping where it is), and a new one is taken when
+the robot has been clear for 1 s again; the latest counts. In the simulation, plugs inside a socket creep slowly
+deeper after release (Fidelity), and scoring at release keeps that from changing the score.
+
+From that measurement:
+
+- **0** with no measurement (including a robot that never touches a plug or lead), or unless:
+  - each of the three plugs was in a different socket, and
   - the order reverses the motor: two leads exchanged relative to the start (an odd permutation). The start order and
     its two cyclic shifts score 0.
-- Then **1.0** if all three plugs are home and the belt has carried the tote wholly past the green (forward) line,
+- Then **1.0** if all three plugs were home and the belt has carried the tote wholly past the green (forward) line,
   100 mm forward of where it started (a tote pushed there by the robot does not count);
 - otherwise **0.5**.
 
-The supply is off at the start. Once the robot has touched a plug or a lead (a robot point within 2 mm of one), the
-tester switches the supply on whenever the robot has been clear (20 mm), the plugs still and all three plugs home for
-1 s, and off again if any of that stops holding. The motor then runs forward for an odd order and backward for an even
-one; with a plug that is not home it does not start (a missing phase). A robot that never touches a plug or lead scores
-0, and the conveyor never runs. The belt moves the tote at 0.1 m/s, up to 130 mm
-either way. The episode ends early on success, once the score has been 1.0 for 1 s.
+The supply is off at the start. The tester switches it on only if the measurement has all three plugs home; the motor
+then runs forward for an odd order and backward for an even one, and the belt moves the tote at 0.1 m/s, up to 130 mm
+either way. With a plug that is not home it is not switched on (in the real motor, a missing phase). The episode ends
+early on success, once the score has been 1.0 for 1 s.
 
 Partial credit. The start is already a complete, working circuit, so no credit can go to a complete circuit as such, or
 "do nothing" would earn it; and a cyclic shift, the tempting wrong answer, is a complete circuit too. The one partial
 tier pays for the right decision with incomplete execution: the leads in a reversing order, each in its own socket, but
 not all pushed home (the motor does not start). Moving plugs without changing the phase sequence earns nothing.
 
-Only the final order, the plugs' depths, the tote and the robot's distance count. Which two leads are swapped (any of
+Only the order and the plugs' depths at the measurement, the tote and the robot's distance count. Which two leads are swapped (any of
 the three pairs scores 1.0), which arm moves which plug, the order of moves and the path don't.
 
 ## Runtime and seeds
@@ -234,14 +240,16 @@ steps). The scripted demo finishes in 934 steps. There are no random seeds: `obj
   earlier version with springs that rested straight let a bowed lead push its plug into a socket by itself (a plug left
   10.7 mm in crept home in about 20 s); the plastic leads stop that. The leads start in a fixed bow so each has 6 cm of
   slack, enough for any plug to reach any socket.
-- **Settling of a loose plug:** a plug left lying outside a socket can still slide slowly while its lead settles over
-  the other leads. In a 40 s test (the `unplug_one` variant held longer), a plug the demo put down 10 mm in front of W
-  (commanded) was 2.8 mm in front of the face once the arm had cleared, then crept towards it at about 0.12 mm/s (to
-  0.4 mm inside the face 30 s later). A plug inside a socket did not move (7.06 mm deep for 30 s), and the seated plugs
-  stayed seated (24.8 to 26.0 mm). Calculated, not run: at 0.12 mm/s a plug at the face would take about 125 s to creep
-  15 mm in, longer than the 90 s run limit; if it ever did, the tester would count it as home.
-- **Plugs and sockets:** plugs are rigid 55 x 16 x 14 mm boxes with no contacts or latch, held in a socket only by its
-  walls and friction. Sockets are 22 x 19 mm and 26 mm deep, so a plug has 3 mm of play each side and 5 mm above it;
+- **Plugs creep after release (a simulation artifact), so scoring uses the depths at release.** Once the robot has let
+  go, a plug keeps sliding slowly, mostly towards and into its socket: inside a socket about 0.07 to 0.09 mm/s (a plug
+  left at 13.3 to 13.5 mm reached 15.3 mm 22 to 28 s later), and a loose plug in front of one about 0.05 to 0.12 mm/s.
+  The cause is the soft, plastic leads yielding after the push; four attempts to stop it in the physics (rest shape
+  frozen after release, plug damping, stiffening released leads, pinning untouched leads) either left it or broke the
+  handling. A real plug stays where it is left. Because the plugs are measured once, 1 s after the robot is clear, and
+  that measurement is what is scored and what decides whether the supply comes on, creep after it cannot change the
+  score. LATCHNOTE
+- **Plugs and sockets:** plugs are rigid 55 x 16 x 14 mm boxes with no electrical contact pins or latch, held in a
+  socket only by its walls and friction. Sockets are 22 x 19 mm and 26 mm deep, so a plug has 3 mm of play each side and 5 mm above it;
   real plug-in terminal blocks fit tighter. Seating is judged by depth.
 - **Fixed parts:** the terminal box, motor, gearbox, conveyor and gland are one fixed body (screwed down in the real
   build).

@@ -1,17 +1,18 @@
 """Reverse a backwards-running three-phase conveyor motor by swapping two of its supply leads.
 
 A short belt conveyor stands across the back of the table, driven by a three-phase motor in front of it. The motor's
-terminal box faces the robots: three plug-in sockets U, V and W (left to right, at table level) hold the plugs of three
+terminal box faces the robots: three single-pole sockets U, V and W (left to right, at table level) hold the plugs of three
 supply leads (brown L1, black L2, grey L3) that come from a cable gland at the front of the table. The motor was just
 replaced and the conveyor now runs backwards. Swapping any two leads reverses a three-phase motor; moving all three one
 socket along (a cyclic shift) keeps the phase sequence and changes nothing.
 
-The supply is off at the start. Once the robot has touched a plug or lead, the "tester" switches the supply on whenever
-all three plugs are home in three sockets, no robot point is within RELEASE_MM of the terminal box, the gland or any
-lead, and the plugs have been still, for 1 s. The motor then turns the
-way the lead order sets: forward for an odd permutation of the starting order, backwards for an even one. The direction
-is computed from the permutation, not simulated electrically. The conveyor's tote and a pointer disc on the drive show
-it: the tote runs past the green (forward) or the red (backward) line.
+The supply is off at the start. Once the robot has touched a plug or lead and has then been clear (no robot point
+within RELEASE_MM of the terminal box, the gland or any lead) for 1 s with the plugs still, the plugs are measured once,
+as an operator would before switching on, and that measurement is what is scored. If all three plugs are home, the
+"tester" switches the supply on. The motor then turns the way the lead order sets: forward for an odd permutation of
+the starting order, backwards for an even one. The direction is computed from the permutation, not simulated
+electrically. The conveyor's tote and a pointer disc on the drive show it: the tote runs past the green (forward) or the
+red (backward) line. If the robot comes back within RELEASE_MM, the measurement is dropped and the supply goes off.
 
 Run it:  inspect-robots run --embodiment yam_arena -E task=task.py --scorer task_score ...
 MOTOR_STATE=k (0-9; default 0, the task's layout) selects a gap-test starting state (README, Gap test).
@@ -472,15 +473,16 @@ TOUCH_MM = 2.0          # the robot has touched a plug or lead once a robot poin
                         # supply stays off until then
 RELEASE_MM = 20.0       # the supply comes on only with no robot point within this of the terminal box, gland or leads
 STILL_MM = 1.0          # ... and no plug moved more than this over the last HOLD_STEPS steps (mm)
-HOLD_STEPS = 20         # 1 s at 20 Hz: both conditions held this long before the supply comes on; success: full score
-                        # held this long
+HOLD_STEPS = 20         # 1 s at 20 Hz: once the robot has touched a lead and has then been clear with the plugs still
+                        # this long, the plugs are measured (latched) and the supply comes on if all three are home;
+                        # success: full score held this long
 HZ = 20
 
 _STATE: dict = {}
 
 
 def _reset_state(environment=None) -> None:
-    _STATE.update(step=0, recent=[], touched=False, clear_steps=0, powered=False, direction=0, tote=0.0, disc=0.0, report={},
+    _STATE.update(step=0, recent=[], touched=False, clear_steps=0, latch=None, powered=False, direction=0, tote=0.0, disc=0.0, report={},
                   score=0.0, full_steps=0)
     if environment is not None:
         _drive_targets(environment)
@@ -520,17 +522,28 @@ def evaluate(objects, shapes=None) -> dict:
     tote = float(objects["drive"].sliders.get("tote", 0.0))   # m along the drive's +y
     rep["tote_mm"] = round(-tote * 1000, 1)             # + forward (-y in the drive frame)
     rep["past_forward_line"] = -tote >= FWD_MOVE - 1e-9
+    rep["latched"] = _STATE["latch"]
     rep["score"] = score_of(rep)
     return rep
 
 
+def latch_of(rep: dict) -> dict:
+    """The plug measurements that are scored: where each plug is and how deep, whether all three are in three sockets
+    and home, and whether the order reverses the motor (taken once, at release; see _tick)."""
+    return {"step": _STATE.get("step", 0), "leads": dict(rep["leads"]), "all_in": rep["all_in"],
+            "all_home": rep["all_home"], "odd": rep["odd"]}
+
+
 def score_of(rep: dict) -> float:
-    """0 unless the robot has touched a plug or lead at some point, is clear now and the plugs are still, and all three
-    plugs are in three different sockets in an order that reverses the motor (odd relative to the start). Then 1.0 if all three are home and the tote has run wholly past
-    the forward line; otherwise 0.5."""
-    if not (rep["touched"] and rep["released"] and rep["still"] and rep["all_in"] and rep["odd"]):
+    """From the latched plug measurements (taken once the robot, having touched a plug or lead, has been clear of the
+    box, gland and leads for 1 s with the plugs still; cleared if it comes back within RELEASE_MM): 0 with no latch, or
+    unless all three plugs were in three different sockets in an order that reverses the motor (odd relative to the
+    start). Then 1.0 if all three were home and the belt has carried the tote wholly past the forward line; otherwise
+    0.5."""
+    latch = rep.get("latched")
+    if not latch or not (latch["all_in"] and latch["odd"]):
         return 0.0
-    return 1.0 if (rep["all_home"] and rep["past_forward_line"]) else 0.5
+    return 1.0 if (latch["all_home"] and rep["past_forward_line"]) else 0.5
 
 
 def _plug_centres(objects) -> np.ndarray:
@@ -549,13 +562,20 @@ def _tick(environment) -> None:
     shapes = robot_shapes()
     rep = evaluate(objects, shapes)
     _STATE["touched"] = rep["touched"]
-    clear = rep["touched"] and rep["released"] and rep["still"] and rep["all_home"]
-    _STATE["clear_steps"] = _STATE["clear_steps"] + 1 if clear else 0
-    _STATE["powered"] = _STATE["clear_steps"] >= HOLD_STEPS
+    if not rep["released"]:                   # the robot is back near the box, gland or leads: start over
+        _STATE["latch"], _STATE["clear_steps"] = None, 0
+    elif _STATE["latch"] is None:
+        _STATE["clear_steps"] = _STATE["clear_steps"] + 1 if (rep["touched"] and rep["still"]) else 0
+        if _STATE["clear_steps"] >= HOLD_STEPS:  # the operator's check: measure the plugs once, before switching on
+            _STATE["latch"] = latch_of(rep)
+    latch = _STATE["latch"]
+    _STATE["powered"] = bool(latch and latch["all_home"])
     if _STATE["powered"]:
-        _STATE["direction"] = 1 if rep["odd"] else -1
+        _STATE["direction"] = 1 if latch["odd"] else -1
         _STATE["tote"] = float(np.clip(_STATE["tote"] - _STATE["direction"] * TOTE_SPEED / HZ, -TOTE_STOP, TOTE_STOP))
     _drive_targets(environment)
+    rep["latched"] = latch
+    rep["score"] = score_of(rep)
     rep["powered"] = _STATE["powered"]
     rep["direction"] = _STATE["direction"] if _STATE["powered"] else 0
     _STATE["report"] = rep
@@ -574,9 +594,12 @@ def success(objects) -> bool:
 
 
 def score(objects) -> float:
-    """0 unless the robot has touched a plug or lead during the trial, no robot point is now within 20 mm of the terminal
-    box, the gland or any lead, no plug moved more than 1 mm over the last second, and all three plugs are in three
-    different sockets (lined up, tip at least 8 mm in) in an order that reverses the motor (an odd permutation of the
-    starting order: two leads swapped). Then 1.0 if all three tips are at least 15 mm in and the tote has run wholly
-    past the green (forward) line; otherwise 0.5."""
+    """The plugs are measured once, when the robot, having touched a plug or lead, has been clear (no robot point within
+    20 mm of the terminal box, the gland or any lead) for 1 s with no plug moving more than 1 mm: the operator's check
+    before switching on. The measurement is dropped if the robot comes back within 20 mm, and taken again when it has
+    been clear for 1 s once more; the latest one counts. 0 before any measurement, or unless all three plugs were in
+    three different sockets (lined up, tip at least 8 mm in) in an order that reverses the motor (an odd permutation of
+    the starting order: two leads swapped). Then 1.0 if all three tips were at least 15 mm in and the belt has carried
+    the tote wholly past the green (forward) line; otherwise 0.5. The supply is on only while a measurement with all
+    three plugs home stands."""
     return _STATE["score"]

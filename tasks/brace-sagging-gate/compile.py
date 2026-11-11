@@ -1,5 +1,6 @@
 import json, os
-B = os.path.expanduser("~/brace_work/gate")
+import sys
+B = sys.argv[1] if len(sys.argv) > 1 else "runs"  # RUNS_DIR with s{k}_{strategy}/result.json
 S = ["correct", "comp_nolift", "tens_nolift", "tens_lift", "lift_only", "hold", "none"]
 EXP = {"correct": 1.0}
 def score(r):

@@ -63,6 +63,11 @@ if T.K != 0:
 cmd = re.search(r'--instruction "([^"]+)"', README)
 if not (cmd and cmd.group(1) == J["instruction"] == T.INSTRUCTION):
     bad.append("instruction differs between task.py, task.json and README")
+if T.INSTRUCTION != ("This conveyor's motor was just replaced and now runs backwards. Rearrange the supply leads among "
+                     "the terminal box's three sockets so that the conveyor runs the way the arrows on its guard point, "
+                     "with every plug pushed fully home, then let go. The supply is isolated; it is switched on once you "
+                     "are clear."):
+    bad.append("instruction is not the agreed wording (G4 round 1)")
 
 # the run limit
 steps = int(J["run_limit"].split()[0].replace(",", ""))
@@ -82,21 +87,21 @@ for o in T.LEAD_OBJS[1:]:
     if not np.allclose(o.body_layout(), lay):
         bad.append("the three leads' starting shapes differ at state 0")
 setup = [
-    f"Terminal box: blue-grey painted box {cm(T.BOX_D)} (x) x {cm(T.BOX_W)} (y) x {cm(T.BOX_H)} cm tall, front face at "
+    f"Terminal box: blue-grey PLA box {cm(T.BOX_D)} (x) x {cm(T.BOX_W)} (y) x {cm(T.BOX_H)} cm tall, front face at "
     f"x {cm(T.FACE_X)}",
-    f"three sockets {mm(T.CAV_W)} mm wide x {mm(T.CAV_H)} mm tall x {mm(T.CAV_D)} mm deep, centred at y "
+    f"three single-pole power sockets (like camlock connectors) {mm(T.CAV_W)} mm wide x {mm(T.CAV_H)} mm tall x {mm(T.CAV_D)} mm deep, centred at y "
     f"+{cm(T.SOCKET_Y[0])} (U), {cm(T.SOCKET_Y[1])} (V) and {cm(T.SOCKET_Y[2])} (W)",
-    f"blue-grey cylinder {cm(2 * T.MOTOR_R)} cm across and {cm(T.MOTOR_L)} cm long, axis along y, centred at "
+    f"blue-grey PLA cylinder (the motor's housing) {cm(2 * T.MOTOR_R)} cm across and {cm(T.MOTOR_L)} cm long, axis along y, centred at "
     f"x {cm(T.FACE_X + T.MOTOR_X)}, y 0",
-    f"dark grey block {cm(T.GEAR[1] - T.GEAR[0])} x {cm(T.GEAR[3] - T.GEAR[2])} x {cm(T.GEAR[4])} cm tall at "
+    f"dark grey PLA block {cm(T.GEAR[1] - T.GEAR[0])} x {cm(T.GEAR[3] - T.GEAR[2])} x {cm(T.GEAR[4])} cm tall at "
     f"x {cm(T.FACE_X + T.GEAR[0])} to {cm(T.FACE_X + T.GEAR[1])}, y {cm(T.GEAR[3])} to {cm(T.GEAR[2])}",
-    f"white pointer disc {cm(2 * T.DISC_R)} cm across",
-    f"light grey bed {cm(T.BED_W)} (x) x {cm(T.BED_L)} (y) x {cm(T.BED_H)} cm tall centred at x {cm(T.FACE_X + T.BED_X)}, y 0",
-    f"yellow guard plate {cm(T.GUARD_X1 - T.GUARD_X0)} x {cm(T.BED_L)} cm, {cm(T.GUARD_Z)} cm tall "
+    f"white PLA pointer disc {cm(2 * T.DISC_R)} cm across, {mm(T.DISC_W)} mm thick",
+    f"light grey aluminium bed {cm(T.BED_W)} (x) x {cm(T.BED_L)} (y) x {cm(T.BED_H)} cm tall centred at x {cm(T.FACE_X + T.BED_X)}, y 0",
+    f"yellow PLA guard plate {cm(T.GUARD_X1 - T.GUARD_X0)} x {cm(T.BED_L)} cm, {cm(T.GUARD_Z)} cm tall "
     f"(x {cm(T.FACE_X + T.GUARD_X0)} to {cm(T.FACE_X + T.GUARD_X1)})",
-    f"a red line across it at y +{cm(T.LINE_Y)} and a green line at y -{cm(T.LINE_Y)}",
-    f"blue box {cm(T.TOTE[0])} (x) x {cm(T.TOTE[1])} (y) x {cm(T.TOTE[2])} cm, {mm(T.TOTE_M)} g, on the belt centred at y 0",
-    f"dark grey block {cm(T.GLAND_SIZE[0])} x {cm(T.GLAND_SIZE[1])} x {cm(T.GLAND_SIZE[2])} cm tall at "
+    f"a red tape line across it at y +{cm(T.LINE_Y)} and a green tape line at y -{cm(T.LINE_Y)}",
+    f"blue PLA box {cm(T.TOTE[0])} (x) x {cm(T.TOTE[1])} (y) x {cm(T.TOTE[2])} cm, {mm(T.TOTE_M)} g, on the belt centred at y 0",
+    f"dark grey PLA block {cm(T.GLAND_SIZE[0])} x {cm(T.GLAND_SIZE[1])} x {cm(T.GLAND_SIZE[2])} cm tall at "
     f"x {cm(T.GLAND_X - T.GLAND_SIZE[0])} to {cm(T.GLAND_X)}",
     f"three {mm(2 * T.R)} mm round PVC leads {cm(T.LEAD_LEN)} cm long",
     f"plug body {mm(T.PL)} x {mm(T.PW)} x {mm(T.PH)} mm (ABS, the lead's colour, {mm(T.PLUG_M)} g)",
@@ -107,20 +112,20 @@ for p in setup:
     need(J["setup"], "task.json setup", p)
 
 # -- scoring text ----------------------------------------------------------------------------------------------------
-ang = math.degrees(math.acos(0.9))
+ang = T.LINE_DEG
 scoring = [f"tape marks {g(T.IN_MM)} mm and {g(T.HOME_MM)} mm from its tip",
            f"centre within {g(T.LINE_MM)} mm of the socket's centre line sideways",
-           f"pointing into it within {math.floor(ang * 10) / 10:g} degrees",
+           f"pointing into it within {g(ang)} degrees",
            "its centre at most 5 mm above the opening's top",
            f"no part of either robot is within {g(T.RELEASE_MM)} mm of the terminal box, the gland or any lead",
            f"no plug moved more than {g(T.STILL_MM)} mm over the last second",
-           f"wholly past the green (forward) line ({mm(T.FWD_MOVE)} mm forward)", "otherwise 0.5",
+           f"the belt has carried the tote wholly past the green (forward) line ({mm(T.FWD_MOVE)} mm forward)", "otherwise 0.5",
            f"at {g(T.TOTE_SPEED)} m/s", f"1.0 for {g(T.HOLD_STEPS / T.HZ)} s"]
 for p in scoring:
     need(J["scoring"], "task.json scoring", p)
 readme_scoring = [f"{g(T.IN_MM)} mm and {g(T.HOME_MM)} mm from its tip",
                   f"its centre within {g(T.LINE_MM)} mm of the socket's centre line",
-                  f"pointing into the socket within {math.floor(ang * 10) / 10:g} degrees",
+                  f"pointing into the socket within {g(ang)} degrees",
                   "its centre at most 5 mm above the opening's top",
                   f"no part of either robot is within {g(T.RELEASE_MM)} mm of the terminal box, the gland or any lead",
                   f"no plug moved more than {g(T.STILL_MM)} mm over the last second",
@@ -190,8 +195,8 @@ for where, tote, kw, want in [
         ([(2, T.IN_MM - 0.1), (1, 24.0), (0, 24.0)], 0, {}, 0.0),
         ([(2, 24.0, T.LINE_MM - 0.1), (1, 24.0), (0, 24.0)], 130, {}, 1.0),
         ([(2, 24.0, T.LINE_MM + 0.1), (1, 24.0), (0, 24.0)], 130, {}, 0.0),
-        ([(2, 24.0, 0.0, 25.0), (1, 24.0), (0, 24.0)], 130, {}, 1.0),
-        ([(2, 24.0, 0.0, 26.0), (1, 24.0), (0, 24.0)], 130, {}, 0.0),
+        ([(2, 24.0, 0.0, T.LINE_DEG - 0.1), (1, 24.0), (0, 24.0)], 130, {}, 1.0),
+        ([(2, 24.0, 0.0, T.LINE_DEG + 0.1), (1, 24.0), (0, 24.0)], 130, {}, 0.0),
         ([(1, 24.0), (2, 24.0), (0, 24.0)], 130, {}, 0.0),            # cyclic shift
         ([(0, 24.0), (1, 24.0), (2, 24.0)], 130, {}, 0.0)]:          # unchanged
     sc = _rep(where, tote_mm=tote, **kw)[1]

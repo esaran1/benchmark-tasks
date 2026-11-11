@@ -35,9 +35,9 @@ from yam_arena.task_file import TABLE_TOP  # noqa: E402
 SCENE = "station"
 TOP = TABLE_TOP[SCENE]
 SCORE_OVER = "end"
-INSTRUCTION = ("This conveyor's motor was just replaced and now runs backwards. Change which socket each supply lead is "
-               "plugged into so that the conveyor runs the way the arrows on its guard point, with every plug pushed "
-               "fully home, then let go. The supply is isolated; it is switched on once you are clear.")
+INSTRUCTION = ("This conveyor's motor was just replaced and now runs backwards. Rearrange the supply leads among the "
+               "terminal box's three sockets so that the conveyor runs the way the arrows on its guard point, with every "
+               "plug pushed fully home, then let go. The supply is isolated; it is switched on once you are clear.")
 
 # -- starting states: (lead in sockets U, V, W as lead indices, lead slack bow side +1 left / -1 right,
 #    drive offset x, y (mm), drive yaw (deg)); state 0 is the task's layout ----------------------------------------
@@ -219,7 +219,8 @@ OBJECTS = [DRIVE, GLAND, *LEAD_OBJS]
 # ---- measurement ---------------------------------------------------------------------------------------------------
 IN_MM = 8.0              # a plug is in a socket when lined up with it and its tip at least this deep (mm)
 HOME_MM = 15.0           # ... and home (fully pushed in) at least this deep (mm)
-LINE_MM = 8.0            # lined up: plug centre within this of the socket's centre line sideways (mm)
+LINE_MM = 8.0            # lined up: plug centre within this of the socket's centre line sideways (mm) ...
+LINE_DEG = 25.0          # ... and its axis within this of the socket's axis (deg)
 
 
 def plug_pose(st):
@@ -237,7 +238,7 @@ def socket_of(st) -> tuple:
         return None, -999.0
     pl, al = to_drive(p), drive_rot().T @ a
     tip = pl + al * PL / 2
-    if al[0] < 0.9 or pl[2] > CAV_H + 0.005:
+    if al[0] < math.cos(math.radians(LINE_DEG)) or pl[2] > CAV_H + 0.005:
         return None, round(float(tip[0]) * 1000, 2)
     j = int(np.argmin([abs(pl[1] - y) for y in SOCKET_Y]))
     if abs(pl[1] - SOCKET_Y[j]) * 1000 > LINE_MM:

@@ -1,8 +1,8 @@
 # Reverse a backwards-running three-phase conveyor motor
 
 A short belt conveyor stands across the back of the table, driven by a three-phase motor through a gearbox. The motor's
-terminal box faces the robots: three sockets, U, V and W from left to right, at table level, hold the plugs of three
-supply leads, brown (L1), black (L2) and grey (L3), which come from a cable gland at the front of the table. The motor
+terminal box faces the robots: three single-pole power sockets, U, V and W from left to right, at table level, hold
+the plugs of three supply leads, brown (L1), black (L2) and grey (L3), which come from a cable gland at the front of the table. The motor
 was just replaced and the conveyor now runs backwards, against the arrows on its yellow guard. The robot must change
 which socket each lead is plugged into so that the conveyor runs the way the arrows point, push every plug fully home,
 and let go. The supply is off at the start. Once the robot has touched a plug or lead, a tester switches the supply on
@@ -14,7 +14,9 @@ Connecting and commissioning three-phase motors is electricians' and motor repai
 Electricians, lists "Install ground leads and connect power cables to equipment, such as motors." O*NET 49-2092.00,
 Electric Motor, Power Tool, and Related Repairers, lists "Inspect electrical connections, wiring, relays, charging
 resistance boxes" and "Rewire electrical systems, and repair or replace electrical accessories." Checking a new motor's
-direction and correcting it is part of every installation. The rule the task tests is standard: "The direction of
+direction and correcting it is part of every installation. The sockets stand for single-pole power connectors (camlock
+or Powerlock style), used to feed machines from temporary power, where exchanging two of the three phase connectors is
+the usual fix for a motor that runs the wrong way. The rule the task tests is standard: "The direction of
 rotation of three-phase motors can be reversed by interchanging any two phases"
 ([Wikipedia, Three-phase electric power](https://en.wikipedia.org/wiki/Three-phase_electric_power)).
 
@@ -40,6 +42,12 @@ What this tests that other tasks don't:
 - #1538 (star-delta, open: "Link this 230/400 V motor for its new 400 V supply") works in the same kind of terminal box,
   but its decision is the winding links for the supply voltage (star or delta). Here the links do not exist and the
   decision is the phase sequence of the supply leads.
+- #777 (buffer-socket-module-permutation: "Move the mis-racked modules between sockets, using the empty fourth socket
+  as a buffer, so each module's coloured band matches its socket lamp disc") is the closest manipulation: it permutes
+  parts among sockets with one held aside. Its target arrangement is given by a colour match; here no arrangement is
+  given, any odd permutation of the start passes, and the tempting move-everything answer fails.
+- #176 (free-outlet-keep-freezer: "Move the fan's plug from the outlet to the green tray, then plug the phone charger
+  into the socket it freed") moves plugs between places named in the instruction; nothing has to be inferred.
 - #136 (patch-cords-per-port-map: "push each plug fully into the numbered port listed for its colour") and #318
   (terminal-strip-to-plan: "fit the strip to the terminal plan") move plugs or terminals to a stated plan. Here there is
   no plan: any of the three possible swaps scores in full, and the tempting "move them all along" fails.
@@ -70,7 +78,7 @@ folder:
 ```bash
 inspect-robots run --embodiment yam_arena --policy dream \
   -E task=task.py -E object_jitter=0 -E control_hz=20 -E cam_width=320 -E cam_height=176 \
-  --instruction "This conveyor's motor was just replaced and now runs backwards. Change which socket each supply lead is plugged into so that the conveyor runs the way the arrows on its guard point, with every plug pushed fully home, then let go. The supply is isolated; it is switched on once you are clear." \
+  --instruction "This conveyor's motor was just replaced and now runs backwards. Rearrange the supply leads among the terminal box's three sockets so that the conveyor runs the way the arrows on its guard point, with every plug pushed fully home, then let go. The supply is isolated; it is switched on once you are clear." \
   --scorer task_score --max-steps 1800 --store-frames --log-dir ~/yam-eval/motor-dream
 ```
 
@@ -104,8 +112,8 @@ V and grey 26.0 mm into U, the tote 130 mm forward, no robot point within 20 mm 
 
 ### Failure variants
 
-Each was run on the task's layout (state 0) through the same `task_score` path (`DEMO_VARIANT=... python demo.py task.py
-out --no-record`), on the final scoring code, with the demo as it was before the re-grip step was added (that step only
+Each was run on the task's layout (state 0) with the same task file, `score()` and `success()` as a trial
+(`DEMO_VARIANT=... python demo.py task.py out --no-record`), on the final scoring code, with the demo as it was before the re-grip step was added (that step only
 acts when a plug fails to enter its socket):
 
 | Variant | What it does | Score | Why |
@@ -128,7 +136,7 @@ robot on 10 starting states, each batch under a score rule written down and comm
 (`gap/gap_rules.txt`). The states change the starting order of the leads (all six orders of brown, black and grey over
 U, V and W occur; each is by definition the order that runs backwards), the side the leads bow to, the drive's position
 (up to 10 mm in x and y) and its yaw (up to 5 degrees). Each batch ran a frozen copy of the task folder through
-`demo.py --no-record`, the same `task_score` path as a trial.
+`demo.py --no-record`, which steps the same task file and reads the same `score()` and `success()` as a trial.
 
 ```bash
 bash gap/gworker.sh FROZEN_COPY OUT MOTOR_STATE "0 1 2 3 4 5 6 7 8 9" "correct cyclic none"
@@ -175,7 +183,7 @@ enter (it was carried 1.3 mm high and drifted 3 to 4.5 mm sideways).
 
 `score()` at the end of the episode, all measurable with a ruler and a photo. Each plug carries two tape marks, 8 mm and
 15 mm from its tip. A plug is **in** a socket when it is lined up with it (its centre within 8 mm of the socket's centre
-line sideways, pointing into the socket within 25.8 degrees, and not above the opening: its centre at most 5 mm above
+line sideways, pointing into the socket within 25 degrees, and not above the opening: its centre at most 5 mm above
 the opening's top) and its 8 mm mark is inside the face; it is **home** when its 15 mm mark is inside too.
 
 - **0** unless all of these hold:
@@ -185,8 +193,8 @@ the opening's top) and its 8 mm mark is inside the face; it is **home** when its
   - each of the three plugs is in a different socket;
   - the order reverses the motor: two leads exchanged relative to the start (an odd permutation). The start order and
     its two cyclic shifts score 0.
-- Then **1.0** if all three plugs are home and the tote has run wholly past the green (forward) line, 100 mm forward of
-  where it started;
+- Then **1.0** if all three plugs are home and the belt has carried the tote wholly past the green (forward) line,
+  100 mm forward of where it started (a tote pushed there by the robot does not count);
 - otherwise **0.5**.
 
 The supply is off at the start. Once the robot has touched a plug or a lead (a robot point within 2 mm of one), the
@@ -241,18 +249,20 @@ steps). The scripted demo finishes in 934 steps. There are no random seeds: `obj
 ## Real-world build
 
 - **Motor and drive:** a small 24 V three-phase brushless motor (or a small induction motor on a low-voltage drive) with
-  a sensorless driver, through a right-angle gearbox to the drive drum of a 40 cm desktop belt conveyor (belt top 5 cm
-  above the table). Exchanging any two of a three-phase motor's phase leads reverses it, so the real build behaves as
+  a sensorless driver, through a right-angle gearbox to the drive drum of a 40 cm desktop belt conveyor (aluminium bed,
+  black rubber belt, belt top 5 cm above the table). Exchanging any two of a three-phase motor's phase leads reverses it, so the real build behaves as
   the simulation's rule does. The motor and gearbox sit in a printed housing (blue-grey and dark grey PLA), with a 5 cm
-  white disc with a red radial stripe on the gearbox's front face, on the drum's shaft.
-- **Terminal box:** a PLA box 60 x 180 x 45 mm screwed to the table, front face 36 cm in front of the arm bases, with
-  three sockets 22 mm wide, 19 mm tall and 26 mm deep at table level, 50 mm apart, marked U, V, W from left to right.
+  white PLA disc with a red radial stripe on the gearbox's front face, on the drum's steel shaft.
+- **Terminal box:** a blue-grey PLA box 60 x 180 x 45 mm screwed to the table, front face 36 cm in front of the arm bases, with
+  three single-pole sockets 22 mm wide, 19 mm tall and 26 mm deep at table level, 50 mm apart, marked U, V, W from
+  left to right (printed stand-ins for camlock-style power connectors).
   Each socket has a sprung contact that a plug's tip pin reaches once it is 15 mm in.
-- **Leads:** three 6 mm round PVC leads 24 cm long (brown, black, grey) from a 30 x 160 x 30 mm gland plate screwed to
+- **Leads:** three 6 mm round PVC leads 24 cm long (brown, black, grey) from a 30 x 160 x 30 mm dark grey PLA gland plate screwed to
   the table at x 12 to 15 cm, each ending in a 55 x 16 x 14 mm printed plug in the lead's colour (15 g) with a contact
   pin at its tip, and tape marks 8 mm and 15 mm from the tip.
-- **Conveyor:** a yellow guard plate along the belt's front edge with two black arrows pointing right, a red line 6 cm
-  left and a green line 6 cm right of the tote's starting centre; a blue 6 x 8 x 4 cm tote (150 g) on the belt.
+- **Conveyor:** a yellow PLA guard plate along the belt's front edge with two black painted arrows pointing right, a red
+  tape line 6 cm left and a green tape line 6 cm right of the tote's starting centre; a blue PLA tote 6 x 8 x 4 cm
+  (150 g) on the belt.
 - **Tester:** a switch on the supply, worked by the operator (or an interlock on a light curtain around the box,
   gland and leads): off at the start; once the robot has touched a plug or lead, on whenever the robot has been clear
   of them for 1 s with all three plugs home, and off as soon as the robot comes near. The belt stops at end stops 130 mm either side of the tote's start.

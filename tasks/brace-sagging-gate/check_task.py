@@ -70,7 +70,7 @@ setup = [f"two stiles (green-painted pine, {mm(stile[0])} x {mm(stile[1])} x {mm
          f"The pins are {mm(T.W)} mm apart along the rails (at y +{cm(T.Y_HINGE)} and y {cm(T.Y_LATCH)})",
          f"at {mm(T.Z_BOT)} mm and {mm(T.Z_TOP)} mm above the table, all in the plane x {cm(T.FX)}",
          f"its bottom {mm(bottom_sq)} mm above the table",
-         f"an {mm(T.WEIGHT_M)} g steel block", f"a {mm(T.HANDLE[0])} x {mm(T.HANDLE[1])} x {mm(T.HANDLE[2])} mm wooden handle",
+         f"an {mm(T.WEIGHT_M)} g weight on its back face", "a 12.5 mm thick steel block on a 7.5 mm pine spacer", f"a {mm(T.HANDLE[0])} x {mm(T.HANDLE[1])} x {mm(T.HANDLE[2])} mm wooden handle",
          f"{mm(T.HANDLE_Z)} mm above the table", f"stop block (30 x 30 x {mm(T.STOP_TOP)} mm, glued to the table",
          f"{mm(T.SAG)} mm lower than when the frame is square",
          f"centre {mm(T.HINGE_BOXES[1][0][0] - T.FX)} mm behind and {mm(abs(T.HINGE_BOXES[1][0][1] - T.Y_HINGE))} mm "
@@ -91,6 +91,7 @@ if not (T.SGN == 1 and T.Y_HINGE > 0):
 
 bands = T.SAG_BANDS
 scoring = [f"its centre within {g(T.SEATED_MM)} mm of where it would touch both faces of the V",
+           f"no more than {g((T.SEAT_DX - T.R_END) * 1000 + 0.5)} mm out from where it would touch the seat's back plate",
            f"no part of either robot is within {g(T.RELEASE_MM)} mm of any part of the gate (frame, seats, weight, "
            f"handle, post), the stop or the brace",
            f"no more than {g(T.STILL_MM)} mm over the last second",
@@ -100,6 +101,8 @@ scoring = [f"its centre within {g(T.SEATED_MM)} mm of where it would touch both 
 for p in scoring:
     need(J["scoring"], "task.json scoring", p)
 readme_scoring = [f"its centre within {g(T.SEATED_MM)} mm of where it would touch both faces of the V",
+                  f"no more than {g((T.SEAT_DX - T.R_END) * 1000 + 0.5)} mm out from where it would touch the seat's back",
+                  f"(the seat is {g((T.SEAT_DX - 0.002) * 1000)} mm deep in front of its back plate)",
                   f"no part of either robot is within {g(T.RELEASE_MM)} mm of any part of the gate",
                   f"moved no more than {g(T.STILL_MM)} mm over the last second"] + \
                  [f"within {g(lim)} mm: **{g(sc) if sc != 1 else '1.0'}**" for lim, sc in bands]
@@ -119,14 +122,36 @@ need(README, "README", f"sagged. A V-notch seat")  # intro wording present
 need(README, "README", f"pulled that side down {mm(T.SAG)} mm onto a rubber stop")
 need(README, "README", f"less {g(T.CLEAR * 1000)} mm clearance")
 
-# the diagonals' length changes quoted in the README (at the task's sag)
-a, b = [__import__("numpy").array(T.CORNERS[k]) for k in ("bh", "tl")]
-c, d = [__import__("numpy").array(T.CORNERS[k]) for k in ("th", "bl")]
-np = __import__("numpy")
-comp = (np.linalg.norm((b - [0, T.SAG]) - a) - np.linalg.norm(b - a)) * 1000
-tens = (np.linalg.norm((d - [0, T.SAG]) - c) - np.linalg.norm(d - c)) * 1000
+# the diagonals' length changes quoted in the README (at the task's sag), seat point to seat point, with the rails
+# turned rigidly about their hinge-side pins (the latch-side pins drop by the sag), and the slack figures
+def _rails_at(sag_m):
+    a = math.asin(sag_m / T.W)
+    q = (math.sin(a / 2), 0.0, 0.0, math.cos(a / 2))
+    out = {}
+    for n, rest in T.RAIL_REST.items():
+        hp = np.array([rest[0], T.Y_HINGE, rest[2]])
+        out[n] = (hp + T._rot(q) @ (np.array(rest) - hp), q)
+    return out
+
+
+def _diag(sag_m, k1, k2):
+    s = T.seat_points_world(_rails_at(sag_m))
+    return float(np.linalg.norm(s[k1] - s[k2]) * 1000)
+
+
+comp = _diag(T.SAG, "bh", "tl") - _diag(0, "bh", "tl")
+tens = _diag(T.SAG, "th", "bl") - _diag(0, "th", "bl")
 need(README, "README", f"(by {-comp:.1f} mm at this gate's {mm(T.SAG)} mm sag)")
 need(README, "README", f"gets longer (by {tens:.1f} mm)")
+d0 = _diag(0, "bh", "tl")
+per01 = 0.1 * 1e-4 / ((d0 - _diag(1e-4, "bh", "tl")) / 1000)          # mm of sag per 0.1 mm of slack
+sag08 = next(s for s in np.arange(0, 0.005, 1e-6) if d0 - _diag(s, "bh", "tl") >= T.CLEAR * 1000) * 1000
+slack3 = d0 - _diag(bands[0][0] / 1000, "bh", "tl")
+need(README, "README", f"lets the latch side drop about {per01:.2f} mm, so {g(T.CLEAR * 1000)} mm leaves it "
+     f"{sag08:.2f} mm below square")
+need(README, "README", f"must stay under about {slack3:.2f} mm in total")
+if abs(d0 - T.L_BRACE * 1000 - T.CLEAR * 1000) > 1e-6:
+    bad.append("brace length is not the square seat-to-seat length less CLEAR")
 
 # the release check covers every box of the gate, its seats, the stop and the brace: a robot point on any box's face
 # reads 0 mm, and a point 0.5 m away reads more than RELEASE_MM (frame at rest, square; brace at its start)

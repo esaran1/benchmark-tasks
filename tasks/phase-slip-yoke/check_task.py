@@ -60,8 +60,8 @@ for key in ("title", "category", "instruction", "setup", "scoring", "run_limit",
         bad.append(f"task.json: {key} missing")
 if not re.fullmatch(r"Dream-1 run: [01]\.\d+; demo: 1\.0", J["scores"]):
     bad.append("task.json: scores")
-if "media" in J:
-    bad.append("task.json: media is filled in by the upload script")
+if "media" in J and not re.fullmatch(r"M-[A-Z0-9]{6}", str(J["media"])):
+    bad.append("task.json: media must be the ID written by tools/upload_media.py")
 if len(J["fidelity"]) > 500:                  # the PR bot rejects a longer fidelity field
     bad.append(f"task.json: fidelity is {len(J['fidelity'])} characters (max 500)")
 if J["category"] not in ("Impact on jobs", "Impact on AI timelines", "Safety and alignment", "Societal relevance",

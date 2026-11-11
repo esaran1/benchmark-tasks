@@ -74,6 +74,8 @@ class Cable(Box):
     start_plug: Plug | None = None
     end_plug: Plug | None = None
     bends: tuple = ()  # starting in-plane bend of each joint (rad, about the cable's local up axis; + turns left), or ()
+    plastic: bool = False  # True: hold_shape() makes the bending springs' rest shape follow the cable's current shape, so
+    # it keeps whatever shape it is left in and never springs back (a PVC lead lying on a table)
     meta: dict = field(default_factory=dict, compare=False, hash=False)
 
     @property
@@ -474,6 +476,16 @@ def _write_bends(env) -> None:
         art.write_root_velocity_to_sim_index(root_velocity=torch.zeros(pose.shape[0], 6, device=pose.device))
         q = getattr(art.data.default_joint_pos, "torch", art.data.default_joint_pos).clone()
         art.write_joint_state_to_sim(q, torch.zeros_like(q))
+        if spec.plastic:
+            art.set_joint_position_target(q)
+
+
+def hold_shape(env) -> None:
+    """For every plastic cable: set its bending springs' rest shape to its current shape (call once per control step)."""
+    for name, spec in _SPECS.items():
+        if spec.plastic:
+            art = env.unwrapped.scene[name]
+            art.set_joint_position_target(getattr(art.data.joint_pos, "torch", art.data.joint_pos).clone())
 
 
 def _install_reset_hook() -> None:

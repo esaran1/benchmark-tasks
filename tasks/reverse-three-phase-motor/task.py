@@ -6,8 +6,9 @@ supply leads (brown L1, black L2, grey L3) that come from a cable gland at the f
 replaced and the conveyor now runs backwards. Swapping any two leads reverses a three-phase motor; moving all three one
 socket along (a cyclic shift) keeps the phase sequence and changes nothing.
 
-The "tester" switches the supply on once all three plugs are home in three sockets, no robot point is within
-RELEASE_MM of the terminal box, the gland or any lead, and the plugs have been still, for 1 s. The motor then turns the
+The supply is off at the start. Once the robot has touched a plug or lead, the "tester" switches the supply on whenever
+all three plugs are home in three sockets, no robot point is within RELEASE_MM of the terminal box, the gland or any
+lead, and the plugs have been still, for 1 s. The motor then turns the
 way the lead order sets: forward for an odd permutation of the starting order, backwards for an even one. The direction
 is computed from the permutation, not simulated electrically. The conveyor's tote and a pointer disc on the drive show
 it: the tote runs past the green (forward) or the red (backward) line.
@@ -35,7 +36,7 @@ SCENE = "station"
 TOP = TABLE_TOP[SCENE]
 SCORE_OVER = "end"
 INSTRUCTION = ("This conveyor's motor was just replaced and now runs backwards. Change which socket each supply lead is "
-               "plugged into so that the conveyor runs the way the arrow on its guard points, with every plug pushed "
+               "plugged into so that the conveyor runs the way the arrows on its guard point, with every plug pushed "
                "fully home, then let go. The supply is isolated; it is switched on once you are clear.")
 
 # -- starting states: (lead in sockets U, V, W as lead indices, lead slack bow side +1 left / -1 right,
@@ -60,7 +61,8 @@ PLUG_M = 0.015
 R = 0.003                                    # 6 mm lead
 LEAD_LEN = 0.24                              # gland to plug (m)
 SEG = 0.02
-BEND_K, BEND_D = 0.01, 0.001                 # lead bending spring (N m/rad) and damping per joint
+BEND_K, BEND_D = 0.01, 0.001                 # lead bending spring (N m/rad) and damping per joint; the spring's
+                                             # rest shape follows the lead's current shape (plastic=True)
 DEPTH0 = 0.024                               # plug tips start this far inside their sockets (m)
 
 # -- drive: terminal box + motor + conveyor, one fixed part; its frame is the socket face's centre on the table, x
@@ -206,7 +208,7 @@ def _lead(i: int):
     n = round(LEAD_LEN / SEG)
     return cable(f"lead_{LEADS[i]}", start=tuple(a.tolist()), yaw=0.0, length=LEAD_LEN, radius=R, segment=SEG,
                  anchor_start=True, end_plug=Plug(size=(PL, PW, PH), mass=PLUG_M, color=LEAD_COLOR[LEADS[i]]),
-                 color=LEAD_COLOR[LEADS[i]], bend_stiffness=BEND_K, bend_damping=BEND_D,
+                 color=LEAD_COLOR[LEADS[i]], bend_stiffness=BEND_K, bend_damping=BEND_D, plastic=True,
                  bends=_bends(a[:2], back[:2], YAW, BOW, n))
 
 
@@ -424,13 +426,15 @@ def _seg_gap(world_pts, p0, p1, r) -> np.ndarray:
     return np.maximum(np.linalg.norm(world_pts - (p0 + t[:, None] * d), axis=1) - r, 0.0)
 
 
-def robot_gap_mm(shapes, objects) -> float:
-    """Smallest distance (mm) from any robot point to the terminal box, the gland or any lead (plug or cable); inf
-    when no robot point is within 30 mm of their bounding box (and offline). Stops early at 0 (touching)."""
+def robot_gaps_mm(shapes, objects) -> tuple:
+    """Smallest distance (mm) from any robot point to (the terminal box, the gland or any lead) and to the leads alone
+    (plug boxes and cables); inf when no robot point is within 30 mm of their bounding box (and offline). Each stops
+    early at 0 (touching)."""
     boxes, caps = scored_boxes(objects), scored_capsules(objects)
+    n_fixed = len(boxes) - len(LEADS)                 # scored_boxes lists the fixed boxes first, then the plugs
     lo = np.min([c - np.abs(r) @ h for c, r, h in boxes] + [np.minimum(a, b) - rr for a, b, rr in caps], axis=0)
     hi = np.max([c + np.abs(r) @ h for c, r, h in boxes] + [np.maximum(a, b) + rr for a, b, rr in caps], axis=0)
-    best = math.inf
+    best_all = best_lead = math.inf
     margin = 0.03
     for _n, pts_l, r, p, centres, radii, bounds in shapes:
         near = np.flatnonzero(np.all((centres + radii[:, None] >= lo - margin) & (centres - radii[:, None] <= hi + margin),
@@ -441,18 +445,30 @@ def robot_gap_mm(shapes, objects) -> float:
         world = world[np.all((world >= lo - margin) & (world <= hi + margin), axis=1)]
         if not len(world):
             continue
-        for c, rr, h in boxes:
-            best = min(best, float(_box_gap(world, c, rr, h).min()) * 1000)
-            if best <= 0.0:
-                return 0.0
+        for c, rr, h in boxes[n_fixed:]:
+            best_lead = min(best_lead, float(_box_gap(world, c, rr, h).min()) * 1000)
         for a, b, rad in caps:
-            best = min(best, float(_seg_gap(world, a, b, rad).min()) * 1000)
-            if best <= 0.0:
-                return 0.0
-    return best
+            if best_lead <= 0.0:
+                break
+            best_lead = min(best_lead, float(_seg_gap(world, a, b, rad).min()) * 1000)
+        best_all = min(best_all, best_lead)
+        for c, rr, h in boxes[:n_fixed]:
+            if best_all <= 0.0:
+                break
+            best_all = min(best_all, float(_box_gap(world, c, rr, h).min()) * 1000)
+        if best_lead <= 0.0:
+            return 0.0, 0.0
+    return best_all, best_lead
+
+
+def robot_gap_mm(shapes, objects) -> float:
+    """Smallest distance (mm) from any robot point to the terminal box, the gland or any lead (plug or cable)."""
+    return robot_gaps_mm(shapes, objects)[0]
 
 
 # ---- the tester and the score --------------------------------------------------------------------------------------
+TOUCH_MM = 2.0          # the robot has touched a plug or lead once a robot point is within this of one (mm); the
+                        # supply stays off until then
 RELEASE_MM = 20.0       # the supply comes on only with no robot point within this of the terminal box, gland or leads
 STILL_MM = 1.0          # ... and no plug moved more than this over the last HOLD_STEPS steps (mm)
 HOLD_STEPS = 20         # 1 s at 20 Hz: both conditions held this long before the supply comes on; success: full score
@@ -463,7 +479,7 @@ _STATE: dict = {}
 
 
 def _reset_state(environment=None) -> None:
-    _STATE.update(step=0, recent=[], clear_steps=0, powered=False, direction=0, tote=0.0, disc=0.0, report={},
+    _STATE.update(step=0, recent=[], touched=False, clear_steps=0, powered=False, direction=0, tote=0.0, disc=0.0, report={},
                   score=0.0, full_steps=0)
     if environment is not None:
         _drive_targets(environment)
@@ -493,9 +509,10 @@ def evaluate(objects, shapes=None) -> dict:
     HOLD_STEPS steps, where the tote is, and the score."""
     shapes = robot_shapes() if shapes is None else shapes
     rep = measure(objects)
-    gap = robot_gap_mm(shapes, objects)
+    gap, gap_lead = robot_gaps_mm(shapes, objects)
     rep["robot_mm"] = round(gap, 1) if math.isfinite(gap) else None
     rep["released"] = gap >= RELEASE_MM
+    rep["touched"] = _STATE["touched"] or gap_lead <= TOUCH_MM     # the robot has touched a plug or lead by now
     recent = _STATE["recent"]
     rep["still"] = (len(recent) == HOLD_STEPS + 1 and
                     float(np.max(np.linalg.norm(recent[-1] - recent[0], axis=1))) * 1000 <= STILL_MM)
@@ -507,10 +524,10 @@ def evaluate(objects, shapes=None) -> dict:
 
 
 def score_of(rep: dict) -> float:
-    """0 unless the robot is clear and the plugs still, and all three plugs are in three different sockets in an order
-    that reverses the motor (odd relative to the start). Then 1.0 if all three are home and the tote has run wholly past
+    """0 unless the robot has touched a plug or lead at some point, is clear now and the plugs are still, and all three
+    plugs are in three different sockets in an order that reverses the motor (odd relative to the start). Then 1.0 if all three are home and the tote has run wholly past
     the forward line; otherwise 0.5."""
-    if not (rep["released"] and rep["still"] and rep["all_in"] and rep["odd"]):
+    if not (rep["touched"] and rep["released"] and rep["still"] and rep["all_in"] and rep["odd"]):
         return 0.0
     return 1.0 if (rep["all_home"] and rep["past_forward_line"]) else 0.5
 
@@ -523,13 +540,15 @@ def _tick(environment) -> None:
     """After every control step: measure, run the tester (supply on after HOLD_STEPS clear steps; direction from the
     lead order), move the belt, score."""
     _STATE["step"] += 1
+    cablekit.hold_shape(environment)          # the leads keep the shape they are left in (no spring-back)
     objects = objects_now(environment)
     recent = _STATE["recent"]
     recent.append(_plug_centres(objects))
     del recent[:-(HOLD_STEPS + 1)]
     shapes = robot_shapes()
     rep = evaluate(objects, shapes)
-    clear = rep["released"] and rep["still"] and rep["all_home"]
+    _STATE["touched"] = rep["touched"]
+    clear = rep["touched"] and rep["released"] and rep["still"] and rep["all_home"]
     _STATE["clear_steps"] = _STATE["clear_steps"] + 1 if clear else 0
     _STATE["powered"] = _STATE["clear_steps"] >= HOLD_STEPS
     if _STATE["powered"]:
@@ -554,8 +573,9 @@ def success(objects) -> bool:
 
 
 def score(objects) -> float:
-    """0 unless no robot point is within 20 mm of the terminal box, the gland or any lead, no plug moved more than 1 mm
-    over the last second, and all three plugs are in three different sockets (lined up, tip at least 8 mm in) in an
-    order that reverses the motor (an odd permutation of the starting order: two leads swapped). Then 1.0 if all three
-    tips are at least 15 mm in and the tote has run wholly past the green (forward) line; otherwise 0.5."""
+    """0 unless the robot has touched a plug or lead during the trial, no robot point is now within 20 mm of the terminal
+    box, the gland or any lead, no plug moved more than 1 mm over the last second, and all three plugs are in three
+    different sockets (lined up, tip at least 8 mm in) in an order that reverses the motor (an odd permutation of the
+    starting order: two leads swapped). Then 1.0 if all three tips are at least 15 mm in and the tote has run wholly
+    past the green (forward) line; otherwise 0.5."""
     return _STATE["score"]

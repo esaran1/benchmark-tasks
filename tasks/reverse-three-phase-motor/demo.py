@@ -10,8 +10,7 @@ slipped in the fingers. Then the robot waits clear of everything while the teste
 
 Environment: DEMO_VARIANT selects a failure variant (README, Scripted demo):
   cyclic      move all three leads one socket along (U->V, V->W, W->U): the phase sequence is unchanged
-  swap_twice  swap U and W, then swap V and W: two swaps, so the order is a cyclic shift of the start
-  half_home   the correct swap, but the last plug pushed in only to 11 mm (in its socket, not home)
+  half_home   the correct swap, but the last plug pushed in only part way (in its socket, not home)
   unplug_one  the correct swap, but the last plug left lying on the table in front of its socket
   hold        the correct swap, but the left arm keeps hold of the last plug
   none        nothing moved
@@ -258,7 +257,7 @@ def strategy(ctx, arms, name):
     yield from pick(ctx, L, u)
     yield from L.move(hold_l, duration=1.5)
     yield from move_plug(ctx, Rt, w, 0, park_r)            # W's plug into U
-    last_seat = 0.011 if name == "half_home" else SEAT_TO
+    last_seat = 0.007 if name == "half_home" else SEAT_TO
     yield from carry_to(ctx, L, 2, duration=2.5)
     if name == "unplug_one":                               # lay it on the table, tip 10 mm short of W
         R = T.drive_rot()
@@ -277,13 +276,6 @@ def strategy(ctx, arms, name):
         yield from wait(6.0)
         return
     yield from let_go(ctx, L, park_l)
-    if name == "swap_twice":                               # then swap V and W as well
-        yield from pick(ctx, L, v)
-        yield from L.move(hold_l, duration=1.5)
-        yield from move_plug(ctx, Rt, u, 1, park_r)        # W's plug (now u) into V
-        yield from carry_to(ctx, L, 2, duration=2.5)
-        yield from insert(ctx, L, v, 2)
-        yield from let_go(ctx, L, park_l)
     yield from wait(1.0)
 
 

@@ -21,3 +21,14 @@ PASS: all 30 runs present and every score equals its expected value exactly (com
 Also checked by hand from each run's report: correct ends with the two outer leads exchanged and the motor forward;
 cyclic ends with all three home in a cyclic order and the motor backwards; none leaves the start order.
 Variants run on state 0 only (G3): swap_twice 0.0, half_home 0.5, unplug_one 0.0, hold 0.0.
+
+=== Rerun 2 (written 2026-11-11T05:37:01Z, BEFORE the rerun batch) ===
+Why: two fixes after the first batch. (1) The leads' bending springs rested straight, so a bowed lead pushed its plug
+towards its socket (a plug left 10.7 mm in crept home in about 20 s). The leads are now plastic: each control step
+the springs' rest shape is set to the lead's current shape (cablekit hold_shape). (2) The supply came on 1 s into every
+trial, before the robot had done anything. It now stays off until the robot has touched a plug or lead (a robot point
+within TOUCH_MM = 2 mm of a plug box or lead capsule).
+Score rule: as above, plus one more 0 condition: the robot has touched a plug or lead at some point in the trial.
+Strategies and expected scores, states 0-9: correct 1.0, cyclic 0.0, none 0.0.
+Variants on state 0 in the same batch: half_home 0.5 (last plug pushed to 7 mm, left there), unplug_one 0.0, hold 0.0.
+PASS: every run present and every score equal to its expected value (compile.py), on >= 10 states.

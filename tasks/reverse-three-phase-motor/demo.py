@@ -299,7 +299,7 @@ def _write_mp4(frames, path: Path) -> None:
     proc.wait()
 
 
-def run(task_path: str, out_dir: str, max_steps: int = 1800, record: bool = True, hold_s: float = 8.0) -> dict:
+def run(task_path: str, out_dir: str, max_steps: int = 1800, record: bool = True, hold_s: float = 5.0) -> dict:
     from inspect_robots import Scene
     from inspect_robots.types import Action
     from inspect_robots_yam.packing import pack
@@ -326,6 +326,9 @@ def run(task_path: str, out_dir: str, max_steps: int = 1800, record: bool = True
                 frames.setdefault(cam, []).append(np.asarray(img))
 
     snap(obs)
+    import time
+
+    t0 = time.time()
     steps, ended, success, info = 0, None, False, {}
     debug = os.environ.get("DEMO_DEBUG")
     while steps < max_steps:
@@ -350,7 +353,7 @@ def run(task_path: str, out_dir: str, max_steps: int = 1800, record: bool = True
             break
     score = 1.0 if success else float(info.get("score", 0.0) or 0.0)
     result = {"task_score": score, "success": success, "steps": steps, "script_end_step": ended, "variant": variant,
-              "state": T.K, "report": T._STATE["report"]}
+              "state": T.K, "report": T._STATE["report"], "loop_wall_s": round(time.time() - t0, 1)}
     if record:
         import imageio
 

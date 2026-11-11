@@ -7,7 +7,7 @@ T=$1; O=$2; SV=$3; S=$4; V=$5; mkdir -p $O
 for k in $S; do for v in $V; do
   d=$O/s${k}_$v; [ -f $d/result.json ] && continue; mkdir -p $d
   ~/gpu/gpu.sh --tag "gap-$(basename $T)-s$k-$v" bash -c "source /data/IsaacLab-Arena/yam.env >/dev/null 2>&1; cd $T && \
-    env $SV=$k DEMO_VARIANT=\$( [ $v = correct ] && echo '' || echo $v ) timeout 1500 python demo.py task.py $d --no-record > $d/log.txt 2>&1"
+    env $SV=$k DEMO_VARIANT=$v timeout 1500 python demo.py task.py $d --no-record > $d/log.txt 2>&1"
   echo "$(date -u +%H:%M) s${k}_$v $(grep -o '"task_score": [0-9.]*' $d/result.json 2>/dev/null) $(grep -m1 -E 'Error|Traceback' $d/log.txt)" >> $O/run.out
 done; done
 echo "DONE $S" >> $O/run.out

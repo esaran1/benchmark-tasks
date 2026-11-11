@@ -426,26 +426,29 @@ def _seg_gap(world_pts, p0, p1, r) -> np.ndarray:
 
 def robot_gap_mm(shapes, objects) -> float:
     """Smallest distance (mm) from any robot point to the terminal box, the gland or any lead (plug or cable); inf
-    when offline."""
+    when no robot point is within 30 mm of their bounding box (and offline). Stops early at 0 (touching)."""
     boxes, caps = scored_boxes(objects), scored_capsules(objects)
     lo = np.min([c - np.abs(r) @ h for c, r, h in boxes] + [np.minimum(a, b) - rr for a, b, rr in caps], axis=0)
     hi = np.max([c + np.abs(r) @ h for c, r, h in boxes] + [np.maximum(a, b) + rr for a, b, rr in caps], axis=0)
     best = math.inf
-    margin = 0.05
+    margin = 0.03
     for _n, pts_l, r, p, centres, radii, bounds in shapes:
         near = np.flatnonzero(np.all((centres + radii[:, None] >= lo - margin) & (centres - radii[:, None] <= hi + margin),
                                      axis=1))
         if not len(near):
             continue
         world = np.concatenate([pts_l[bounds[k]:bounds[k + 1]] for k in near]) @ r.T + p
-        keep = np.all((world >= lo - margin) & (world <= hi + margin), axis=1)
-        world = world[keep]
+        world = world[np.all((world >= lo - margin) & (world <= hi + margin), axis=1)]
         if not len(world):
             continue
         for c, rr, h in boxes:
             best = min(best, float(_box_gap(world, c, rr, h).min()) * 1000)
+            if best <= 0.0:
+                return 0.0
         for a, b, rad in caps:
             best = min(best, float(_seg_gap(world, a, b, rad).min()) * 1000)
+            if best <= 0.0:
+                return 0.0
     return best
 
 

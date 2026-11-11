@@ -1,0 +1,23 @@
+Gap-test score rule for reverse-three-phase-motor, written 2026-11-11T03:22:09Z BEFORE the batch (task.py score_of()).
+
+Score at the end of the episode (task_score: 1.0 on success = full score held 1 s, else score() at the last step):
+- 0 unless ALL of: no robot point within RELEASE_MM = 20 mm of the terminal box, the gland or any lead (plug box or
+  cable capsule); no plug centre moved more than STILL_MM = 1 mm over the last 20 steps (1 s); every lead's plug is in a
+  socket (lined up: axis within 25.8 deg of the socket axis, centre within LINE_MM = 8 mm of the socket centre line
+  sideways, centre no more than 5 mm above the opening's top; tip at least IN_MM = 8 mm inside the face), the three in
+  three different sockets; and that order is an ODD permutation of the starting order (two leads swapped).
+- Then 1.0 if all three tips are at least HOME_MM = 15 mm in AND the tote has moved at least FWD_MOVE = 100 mm forward
+  (wholly past the green line); otherwise 0.5.
+The tester (supply on) runs only after 20 consecutive steps with the robot clear, the plugs still and all three home;
+direction +1 (forward) for an odd order, -1 for an even one; tote 0.10 m/s, stops at 130 mm.
+
+Strategies (demo.py strategy(), DEMO_VARIANT) and expected score on every state:
+  correct  swap the leads in U and W                                   1.0
+  cyclic   move all three one socket along (U->V, V->W, W->U)           0.0
+  none     do nothing                                                   0.0
+States: MOTOR_STATE 0-9 (task.py _STATES): start order (all 6 permutations of brown/black/grey over U, V, W appear),
+lead bow side +-1, drive offset x, y within +-10 mm, drive yaw within +-5 deg.
+PASS: all 30 runs present and every score equals its expected value exactly (compile.py), on >= 10 states.
+Also checked by hand from each run's report: correct ends with the two outer leads exchanged and the motor forward;
+cyclic ends with all three home in a cyclic order and the motor backwards; none leaves the start order.
+Variants run on state 0 only (G3): swap_twice 0.0, half_home 0.5, unplug_one 0.0, hold 0.0.

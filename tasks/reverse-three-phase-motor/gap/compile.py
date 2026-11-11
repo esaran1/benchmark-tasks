@@ -1,6 +1,7 @@
 """compile.py OUT_DIR EXPECTED.json  ->  table of task_score per state x strategy (with where each lead ended), and
 mismatches. EXPECTED.json: {"strategy": expected_score, ...}, written before the batch (gap_rules.txt).
-Pass rule: every run present, |score - expected| <= 1e-9, on at least 10 states."""
+Pass rule: |score - expected| <= 1e-9 for every run made; at least 10 states; the first strategy (correct) on every state;
+each other strategy on state 0 and at least 2 other states (the user's gap-test sizing rule)."""
 import json
 import os
 import sys
@@ -31,4 +32,7 @@ print("\nper run: state strategy score steps leads(socket, tip mm) tote_mm")
 for d in detail:
     print(*d)
 print("mismatches:", json.dumps(bad, default=str))
-print("PASS" if not bad and not missing and len(ks) >= 10 else f"NOT PASS (missing {missing}, states {len(ks)})")
+ran = {st: {k for k in ks if os.path.exists(f"{O}/s{k}_{st}/result.json")} for st in S}
+cover = ran[S[0]] == set(ks) and all(0 in ran[st] and len(ran[st]) >= 3 for st in S[1:])
+print("runs per strategy:", {st: sorted(v) for st, v in ran.items()})
+print("PASS" if not bad and cover and len(ks) >= 10 else f"NOT PASS (missing {missing}, states {len(ks)}, coverage {cover})")

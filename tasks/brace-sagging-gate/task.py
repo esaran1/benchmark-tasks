@@ -371,22 +371,36 @@ def _box_gap(world_pts, centre, rot, half) -> float:
     return float(np.linalg.norm(np.maximum(np.abs(loc) - half, 0), axis=1).min())
 
 
-def robot_gap_mm(shapes, objects, bodies) -> float:
-    """Smallest distance (mm) from any robot point to the brace (its bounding box) or to the latch stile, its weight
-    and handle, or either rail (their main boxes)."""
-    boxes = []
+def _qwxyz(q) -> np.ndarray:
+    w, x, y, z = q
+    return _rot((x, y, z, w))
+
+
+def scored_boxes(objects, bodies) -> list:
+    """Every box the release check covers, where it is now: (centre, rotation, half-size), m. All of the gate (the
+    fixed hinge-side stile and post, both rails with their seats and back plates, the latch-side stile with its weight
+    and handle), the stop, and the brace (its bounding box)."""
+    out = []
+    for c, sz, *_rest in HINGE_BOXES:                      # fixed with the gate's base, which stands at (0, 0, TOP)
+        out.append((np.array([c[0], c[1], c[2] + TOP]), np.eye(3), np.array(sz) / 2))
+    for pin in PINS:
+        p, q = bodies[pin.name]
+        r = _rot(q)
+        for spec in pin.boxes:
+            c, sz = spec[0], spec[1]
+            rb = _qwxyz(spec[3]) if len(spec) > 3 else np.eye(3)
+            out.append((np.asarray(p) + r @ (np.array(c) - np.array(pin.rest)), r @ rb, np.array(sz) / 2))
+    for c, sz, *_rest in STOP.boxes:
+        out.append((np.array([FX, Y_LATCH, TOP]) + np.array(c), np.eye(3), np.array(sz) / 2))
     if "brace" in objects:
         b = objects["brace"]
-        boxes.append((np.asarray(b.pos), b.rotation(), np.array([R_END, L_BRACE / 2 + R_END, R_END])))
-    p, q = bodies["latch_stile"]
-    r = _rot(q)
-    rest = np.array([FX, Y_LATCH, (Z_BOT + Z_TOP) / 2])
-    for c, s in (((FX, Y_LATCH, (Z_BOT + Z_TOP) / 2), STILE), ((FX + 0.0175, Y_LATCH, (Z_BOT + Z_TOP) / 2), (0.02, 0.04, 0.02)),
-                 ((FX, HANDLE_Y, HANDLE_Z), HANDLE)):
-        boxes.append((np.asarray(p) + r @ (np.array(c) - rest), r, np.array(s) / 2))
-    for name, rest_r in RAIL_REST.items():
-        p, q = bodies[name]
-        boxes.append((np.asarray(p), _rot(q), np.array([RAIL[0], W + STILE[1], RAIL[1]]) / 2))
+        out.append((np.asarray(b.pos), b.rotation(), np.array([R_END, L_BRACE / 2 + R_END, R_END])))
+    return out
+
+
+def robot_gap_mm(shapes, objects, bodies) -> float:
+    """Smallest distance (mm) from any robot point to any box in scored_boxes(); inf when offline."""
+    boxes = scored_boxes(objects, bodies)
     best = math.inf
     for _n, pts_l, r, p, centres, radii, bounds in shapes:
         world = pts_l @ r.T + p
@@ -398,8 +412,8 @@ def robot_gap_mm(shapes, objects, bodies) -> float:
 
 
 # ---- score ---------------------------------------------------------------------------------------------------------
-RELEASE_MM = 20.0       # counts only with no robot point within this of the brace, the latch stile (with its weight
-                        # and handle) or either rail (mm) ...
+RELEASE_MM = 20.0       # counts only with no robot point within this of any part of the gate (frame, seats, weight,
+                        # handle, post), the stop or the brace (mm) ...
 STILL_MM = 0.2          # ... and the sag changed by no more than this over the last HOLD_STEPS steps (mm)
 HOLD_STEPS = 20         # 1 s at 20 Hz; success: full score held this long
 SAG_BANDS = ((3.0, 1.0), (6.0, 0.5), (9.0, 0.2))   # (latch side within this of square (mm), score)
@@ -467,8 +481,8 @@ def success(objects) -> bool:
 
 def score(objects) -> float:
     """0 unless the brace sits in two diagonally opposite seats (each end within 3 mm of its notch, in the seat's depth),
-    no robot point is within 20 mm of the brace, the latch-side stile (with its weight and handle) or either rail, and the
-    latch side moved no more than 0.2 mm over the last second. Then, by how far the latch side sits from square (the
+    no robot point is within 20 mm of any part of the gate (frame, seats, weight, handle, post), the stop or the brace, and
+    the latch side moved no more than 0.2 mm over the last second. Then, by how far the latch side sits from square (the
     top of the latch-side stile against the top of the hinge-side stile): within 3 mm 1.0, within 6 mm 0.5, within
     9 mm 0.2, further 0."""
     return _update(objects)[0]

@@ -14,6 +14,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
+import numpy as np  # noqa: E402
 import task as T  # noqa: E402
 
 J = json.loads((HERE / "task.json").read_text())
@@ -70,8 +71,14 @@ setup = [f"two stiles (green-painted pine, {mm(stile[0])} x {mm(stile[1])} x {mm
          f"at {mm(T.Z_BOT)} mm and {mm(T.Z_TOP)} mm above the table, all in the plane x {cm(T.FX)}",
          f"its bottom {mm(bottom_sq)} mm above the table",
          f"an {mm(T.WEIGHT_M)} g steel block", f"a {mm(T.HANDLE[0])} x {mm(T.HANDLE[1])} x {mm(T.HANDLE[2])} mm wooden handle",
-         f"{mm(T.HANDLE_Z)} mm above the table", f"stop block (30 x 30 x {mm(T.STOP_TOP)} mm)",
+         f"{mm(T.HANDLE_Z)} mm above the table", f"stop block (30 x 30 x {mm(T.STOP_TOP)} mm, glued to the table",
          f"{mm(T.SAG)} mm lower than when the frame is square",
+         f"centre {mm(T.HINGE_BOXES[1][0][0] - T.FX)} mm behind and {mm(abs(T.HINGE_BOXES[1][0][1] - T.Y_HINGE))} mm "
+         f"to the left of the stile's centre line, at x {cm(T.HINGE_BOXES[1][0][0])}, y +{cm(T.HINGE_BOXES[1][0][1])}",
+         f"wooden post ({mm(T.HINGE_BOXES[1][1][0])} x {mm(T.HINGE_BOXES[1][1][1])} x {mm(T.HINGE_BOXES[1][1][2])} mm",
+         f"centred {mm((T.Z_BOT + T.Z_TOP) / 2)} mm above the table when square",
+         f"with a 2 x {mm(T.SEAT_L * 1.2)} x {mm(T.SEAT_L * 1.2)} mm pine back plate",
+         "glued to the table; it must not be moved",
          f"two pine plates ({mm(T.SEAT_DX)} x {mm(T.SEAT_L)} x {mm(T.SEAT_T)} mm, at 90 degrees",
          f"standing {mm(T.SEAT_DX)} mm out from the frame's front face",
          f"a pine dowel {mm(2 * T.R_SHAFT)} mm across with a {mm(2 * T.R_END)} mm ball on each end",
@@ -83,16 +90,17 @@ if not (T.SGN == 1 and T.Y_HINGE > 0):
     bad.append("state 0 must have the hinge on the left (+y)")
 
 bands = T.SAG_BANDS
-scoring = [f"each ball end within {g(T.SEATED_MM)} mm of its notch's seat point",
-           f"no part of either robot is within {g(T.RELEASE_MM)} mm of the brace",
+scoring = [f"its centre within {g(T.SEATED_MM)} mm of where it would touch both faces of the V",
+           f"no part of either robot is within {g(T.RELEASE_MM)} mm of any part of the gate (frame, seats, weight, "
+           f"handle, post), the stop or the brace",
            f"no more than {g(T.STILL_MM)} mm over the last second",
            "; ".join(f"within {g(lim)} mm {sc:.1f}".replace(".0;", ".0;") for lim, sc in bands).replace(" 0.5", " 0.5")
            .replace(" 0.2", " 0.2") + "; further 0",
            f"1.0 for {g(T.HOLD_STEPS / 20)} s"]
 for p in scoring:
     need(J["scoring"], "task.json scoring", p)
-readme_scoring = [f"within {g(T.SEATED_MM)} mm of its notch's seat point",
-                  f"no part of either robot is within {g(T.RELEASE_MM)} mm",
+readme_scoring = [f"its centre within {g(T.SEATED_MM)} mm of where it would touch both faces of the V",
+                  f"no part of either robot is within {g(T.RELEASE_MM)} mm of any part of the gate",
                   f"moved no more than {g(T.STILL_MM)} mm over the last second"] + \
                  [f"within {g(lim)} mm: **{g(sc) if sc != 1 else '1.0'}**" for lim, sc in bands]
 for p in readme_scoring:
@@ -119,6 +127,43 @@ comp = (np.linalg.norm((b - [0, T.SAG]) - a) - np.linalg.norm(b - a)) * 1000
 tens = (np.linalg.norm((d - [0, T.SAG]) - c) - np.linalg.norm(d - c)) * 1000
 need(README, "README", f"(by {-comp:.1f} mm at this gate's {mm(T.SAG)} mm sag)")
 need(README, "README", f"gets longer (by {tens:.1f} mm)")
+
+# the release check covers every box of the gate, its seats, the stop and the brace: a robot point on any box's face
+# reads 0 mm, and a point 0.5 m away reads more than RELEASE_MM (frame at rest, square; brace at its start)
+class _Brace:
+    pos = np.array([T.BSTART[0], T.BSTART[1], T.TOP + T.R_END])
+
+    def rotation(self):
+        return np.eye(3)
+
+
+_bodies = {pin.name: (np.array(pin.rest) + [0, 0, T.TOP], (0.0, 0.0, 0.0, 1.0)) for pin in T.PINS}
+_objs = {"brace": _Brace()}
+_boxes = T.scored_boxes(_objs, _bodies)
+n_seat = sum(len(pin.boxes) for pin in T.PINS)
+if len(_boxes) != len(T.HINGE_BOXES) + n_seat + len(T.STOP.boxes) + 1:
+    bad.append("scored_boxes count")
+
+
+def _shape(pts):
+    pts = np.atleast_2d(np.asarray(pts, float))
+    return [("fake", pts, np.eye(3), np.zeros(3), pts, np.zeros(len(pts)), np.arange(len(pts) + 1))]
+
+
+worst = 0.0
+for c, r, h in _boxes:
+    for ax in range(3):
+        for sgn in (-1, 1):
+            pt = c + r @ (np.eye(3)[ax] * h[ax] * sgn)
+            worst = max(worst, T.robot_gap_mm(_shape(pt), _objs, _bodies))
+if worst > 1e-6:
+    bad.append(f"a robot point on a scored box's face reads {worst:.3f} mm, not 0")
+seat_specs = [b for pin in T.PINS if "rail" in pin.name for b in pin.boxes[1:]]
+if len(seat_specs) != 4 * 3:
+    bad.append("expected 4 seats x 3 plates on the rails")
+far = T.robot_gap_mm(_shape([T.FX - 0.5, 0.0, T.TOP + 0.3]), _objs, _bodies)
+if not far > T.RELEASE_MM:
+    bad.append("a point 0.5 m away reads inside the release zone")
 
 # score bands at their boundaries
 for sag, want in ((0.0, 1.0), (3.0, 1.0), (-3.0, 1.0), (3.01, 0.5), (6.0, 0.5), (6.01, 0.2), (9.0, 0.2), (9.01, 0.0),

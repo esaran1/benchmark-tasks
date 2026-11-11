@@ -1,6 +1,6 @@
 # Brace a sagging gate so it holds itself up
 
-A small garden-gate frame stands upright across the table in front of the robots. Its hinge-side stile is fixed to a
+A tabletop model of a garden gate (about 1:5 scale) stands upright across the table in front of the robots. Its hinge-side stile is fixed to a
 post; its two rails are pinned at all four corners, so the frame racks like a parallelogram. A steel weight on the
 latch-side stile has pulled that side down 14 mm onto a rubber stop: the gate has sagged. A V-notch seat stands out
 from the frame's front face in each inside corner, and a loose wooden brace (a 12 mm dowel with 15 mm ball ends) lies
@@ -32,9 +32,18 @@ What this tests that other tasks don't:
   equal, keep it on its outline, then let go of it") is done on a frame lying flat, with no load and nothing that has to
   hold it square afterwards.
 - Squaring a racked gantry beam (#419) is a coordinated two-ended pull against a jam.
+- Lifting a load with one arm while the other slides a support under it (#338, lever-crate-dunnage: "Press the red
+  lever's handle down to lift the front of the blue crate and hold it there, slide the wooden block under the crate's
+  raised front edge with the other arm, then let go of the lever") and #1324 (lever-lift-and-chock-heavy-block: "Press
+  down the long end of the grey lever bar to lift the red block, slide the orange chock under the red block, then let
+  the lever go so the block rests on the chock") have the same lift-hold-insert motion. But there the support's place
+  is given, it goes straight under the load, and anywhere under it works.
+- Choosing where a member goes so it holds a structure (#880, plumb-guyed-mast-on-pegs: "put each guy's ring eye on
+  the ground peg on its own side that holds the mast plumb") uses guys in tension, picked by which peg plumbs the mast.
 
-Here the frame is under load, and the robot has to choose the one member position in which that load keeps the frame
-square, against a tempting wrong one that fits more easily. The lift-and-hold while the other arm fits the brace is
+Here the frame is under load, both seat pairs accept the brace, and the robot has to choose the one member position in
+which that load keeps the frame square, against a tempting wrong one that fits more easily. The member can only push,
+so the choice is compression against tension. The lift-and-hold while the other arm fits the brace is
 needed only for the right diagonal; the wrong diagonal needs no hold and still scores 0.
 
 ## Files
@@ -67,7 +76,7 @@ inspect-robots run --embodiment yam_arena --policy dream \
 
 Dream-1 scored 0.0 in its one run of this command and ran all 1,800 steps. Both arms reached in around the gate over
 the run, but the brace was never picked up: in the last frame it still lies on the table in front of the gate, which
-is still on its stop.
+is still on its stop. (This run was scored before the release zone was widened to every part of the gate; the wider zone only makes the check stricter, and the brace was never seated.)
 
 ## Scripted demo
 
@@ -103,13 +112,23 @@ Each was run on the task's layout through the same `task_score` path (`DEMO_VARI
 | `hold` | The correct fit, but the latch arm keeps hold of the handle to the end | 0.0 | Seated on the right diagonal, but the robot is touching the latch-side stile's handle (sag 1.97 mm, robot 0 mm) |
 | `none` | Nothing moved | 0.0 | The gate stays on its stop (sag 14.00 mm) |
 
+A robot that holds the gate up anywhere else (under a seat, by the frame, by the weight) is outside the release zone
+by construction. The zone is measured to every box of the gate (both rails with their seats and back plates, both
+stiles, the weight, the handle and the post), the stop and the brace. `check_task.py` puts a robot point on each face
+of every one of those boxes and checks that it reads 0 mm. After review, this zone was widened from the brace, the
+latch-side stile and the rails' main boxes to every part. That changes nothing in the runs above, whose robots ended
+at least 20 mm from everything or, in `hold`, touching the handle; the demo and the correct runs were rerun on the
+final code (see Gap test).
+
 ## Gap test
 
 Before the demo, README or media were built, every strategy above was run with the robot on 10 starting states, under
 a score rule written down before the batch (`gate_rules.txt`). The states vary which side the hinge is on (the gate is
 mirrored, which swaps the arms' roles), the sag (12 to 16 mm), the frame's distance from the robots (±10 mm) and where
-the brace lies (±10 mm in x, up to 20 mm in y). The rule is the score below except that "still" was checked over the
-last 2 s of 10-step samples.
+the brace lies (±10 mm in x, up to 20 mm in y). The rule (`gate_rules.txt`) is the score below with two differences.
+It said "sag range over the last 1 s"; the batch runner sampled every 10 steps and checked the last 5 samples, which
+span 2 s, a stricter check. And the bands were on the sag below square only; the final score bands its size either
+way, which no run came near. `run2.py correct` is the same strategy code as `demo.py`'s full-score run.
 
 ```bash
 BRACE_STATE=k python run2.py STRATEGY OUT_DIR       # k = 0..9; writes OUT_DIR/result.json
@@ -135,6 +154,13 @@ No mismatches against the expected scores (correct 1.0, every other strategy 0).
 1.60 to 1.64 mm below square; every wrong strategy leaves it on its stop (12 to 16 mm), except `hold`, which is
 seated at 1.9 to 2.0 mm but scores 0 because the robot still holds the handle.
 
+After review widened the release zone (Failure variants), the final `task.py` and `demo.py` were rerun through
+`demo.py` (`BRACE_STATE=k DEMO_VARIANT=... python demo.py task.py OUT --no-record`): every failure variant on state 0,
+and the correct fit on all 10 states. The results matched the batch above. The correct fit scored 1.0 on every state,
+taking 595 to 597 steps, and left the latch side 1.60 to 1.64 mm below square. `comp_nolift`, `tens_nolift`,
+`tens_lift`, `lift_only` and `none` scored 0.0 with the gate on its 14.00 mm stop. `hold` scored 0.0, seated at 1.97 mm
+with the robot 0 mm from the handle. The recorded demo (state 0, 596 steps, 1.0) is the demo video.
+
 Before the robot work, a physics check (`run.py` with `task_stage1.py`, no robot) wrote the brace into each diagonal's
 seats with the frame square and let go: on the compression diagonal the gate settled at 1.54 mm below square; on the
 other diagonal, and with no brace, it sagged back onto its 14 mm stop.
@@ -144,11 +170,12 @@ other diagonal, and with no brace, it sagged back onto its 14 mm stop.
 `score()` at the end of the episode, all measurable with a steel rule and a photo:
 
 - **0** unless all of these hold:
-  - the brace sits in two diagonally opposite seats, each ball end within 3 mm of its notch's seat point and within
-    the seat's depth;
-  - no part of either robot is within 20 mm of the brace, the latch-side stile (with its weight and handle) or either
-    rail;
-  - the latch side moved no more than 0.2 mm over the last second.
+  - the brace sits in two diagonally opposite seats: each ball end rests in its notch, its centre within 3 mm of where
+    it would touch both faces of the V, and between the seat's front edge and its back plate;
+  - no part of either robot is within 20 mm of any part of the gate (frame, seats, weight, handle, post), the stop or
+    the brace;
+  - the gate is at rest: in the real world, measured 5 s after the robot lets go; in simulation, the latch side moved
+    no more than 0.2 mm over the last second.
 - Then, by how far the top of the latch-side stile sits from level with the top of the hinge-side stile:
   - within 3 mm: **1.0**;
   - within 6 mm: **0.5**;
@@ -157,9 +184,9 @@ other diagonal, and with no brace, it sagged back onto its 14 mm stop.
 
 The episode ends early on success, once the score has been 1.0 for 1 s.
 
-The partial bands give credit for a seated brace that leaves the latch side part way up. That would be a brace cut
-short in the real world. In this scene the brace's length fixes a seated compression brace at about 1.6 mm, and a
-brace on the other diagonal leaves the gate on its stop, so every scripted run scored 1.0 or 0.
+The outcome is close to binary by design: a seated compression brace holds the gate near square, and anything else
+leaves it on its stop, so every scripted run scored 1.0 or 0. The partial bands are for real builds, where a brace cut
+short or play in the pivots lets a correctly fitted brace stop the gate part way up.
 
 Only the brace's position, the gate's position and the robot's distance count. Which arm lifts, which arm fits the
 brace, the order of moves and the path don't.
@@ -194,16 +221,20 @@ Rigid bodies built from boxes, cylinders and spheres.
 
 Pine strips 15 x 20 mm:
 
-- **Frame:** two stiles 150 mm long and two rails 220 mm long, joined at each corner by a single bolt (a pivot) with
-  the bolts 200 mm apart along the rails and 120 mm apart up the stiles.
+- **Frame:** two stiles 150 mm long and two rails 220 mm long, joined at each corner by a single close-fitting bolt (a
+  pivot) with the bolts 200 mm apart along the rails and 120 mm apart up the stiles.
 - **Hinge side:** the hinge-side stile is clamped to a fixed upright post so it stays plumb.
 - **Latch side:** an 80 g steel block is screwed to the latch-side stile's back face, and a 12 x 60 x 12 mm handle
-  sticks out from its outer face, 100 mm above the table. A 30 x 30 x 16 mm rubber block on the table under the
-  latch-side stile is the stop.
-- **Seats:** each is two 22 x 35 x 3 mm plywood plates glued at 90 degrees into a V, standing 35 mm out from the
+  sticks out from its outer face, 100 mm above the table. A 30 x 30 x 16 mm rubber block glued to the table under
+  the latch-side stile is the stop. It must be fixed: turned on edge it would stand 30 mm tall and hold the gate
+  square by itself.
+- **Seats:** each is two 22 x 35 x 3 mm pine plates glued at 90 degrees into a V, standing 35 mm out from the
   frame's front face, in each inside corner, opening along the diagonal, glued to the rail it sits on.
-- **Brace:** a 12 mm dowel with 15 mm wooden balls on its ends, 183.9 mm between the balls' centres. In practice, cut
-  it to fit the squared frame's seats with about 1 mm to spare.
+- **Brace:** a 12 mm dowel with 15 mm wooden balls on its ends, 183.9 mm between the balls' centres. Cut it to fit the
+  squared frame's seats with no more than 0.8 mm to spare, as in the simulation. Calculated from the frame's geometry
+  (not run): each 0.1 mm of slack along the brace lets the latch side drop about 0.2 mm, so 0.8 mm leaves it 1.66 mm
+  below square. The brace's clearance plus play in the pivots must stay under about 1.4 mm in total for a correct fit
+  to score 1.0.
 
 Everything is light and below 20 cm, so trials are safe. Reset: take the brace out and lay it back on the table; the
 gate drops back onto its stop.

@@ -1,0 +1,23 @@
+{
+  "title": "Put a driveshaft's slip yoke back on in phase",
+  "category": "Impact on jobs",
+  "keywords": [
+    "driveshaft",
+    "slip yoke",
+    "U-joint",
+    "driveline phasing",
+    "splines",
+    "vehicle maintenance",
+    "choosing among positions that all fit",
+    "mechanical reasoning"
+  ],
+  "instruction": "Slide the slip yoke back onto the driveshaft's splined shaft, all the way down to the collar, turned so that the shaft's output will turn evenly with its input, then let go of it.",
+  "context": "Mechanics who pull a driveshaft apart at its slip joint must refit the slip yoke in phase, its ears in one plane with the yoke at the shaft's other end, or the U-joints' speed swings add up and the driveline vibrates (\"By being off just one tooth, the driveline can vibrate\"). All six spline positions fit and seat alike; two are in phase.",
+  "setup": "Positions in cm from the midpoint between the two arm bases, on the table (x forward, y left); heights in mm above the table. Driveshaft trainer: one 3D-printed PETG piece screwed to the table so it cannot move, standing upright with its shaft's axis at x 27, y 5. It has a base plate 80 x 80 x 6 mm (dark grey); the far yoke, two blue ears each 6 mm thick, 18 mm wide and 30 mm tall (6 to 36 mm up), their inner faces 22 mm and outer faces 28 mm from the axis, on a line along x (front to back); an orange cross between them, a 12 x 12 mm bar 56 mm long along the ear line and a 32 mm bar across it, centred 24 mm up; the shaft's tube, 14 mm across, from 30 to 66 mm up; a stop collar 36 mm across, from 62 to 70 mm up (its top is the seat); and the splined shaft, a 16 mm core from 70 to 112 mm up with six flat-topped splines along it, each 6 mm wide and standing 5 mm proud of the core (26 mm across the tips), one on each far-yoke ear's direction and the others every 60 degrees. Slip yoke (orange, 3D-printed PETG, 42 g): a sleeve 40 mm long, 39 mm across outside and 27 mm across its bore, with six internal lands 3.5 mm wide reaching to 10.5 mm from its axis (21 mm across) that leave six slots for the splines, one slot on each of its ears' directions; the bore's bottom edge has a 3 mm 45-degree bevel and the lands start 6 mm above the bottom; two ears on top, each 6 mm thick, 18 mm wide and 30 mm tall, their outer faces 56 mm apart. It stands upright on the table, bottom down, at x 21.5, y 16, its ears pointing 70 degrees from the far yoke's ear line (turned from +x towards +y). It fits onto the splines at any of six turns, 60 degrees apart. Nothing else is on the table.",
+  "scoring": "Measured at the end with a ruler and a photo from straight above the shaft. Phase: the angle, seen from above, between the line through the slip yoke's two ears and the line through the far yoke's two ears, either way round (0 to 90 degrees). Seated: the slip yoke's bottom within 3 mm of the collar's top, its axis within 3 mm of the shaft's and within 5 degrees of vertical. On the shaft: at least 15 mm of the sleeve below the top of the splines, its axis within 3 mm of the shaft's and within 5 degrees of vertical. Score 1.0 if the phase is 10 degrees or less and the slip yoke is seated; 0.5 if the phase is 10 degrees or less and it is on the shaft but not seated; 0 otherwise (phase more than 10 degrees, or not on the shaft: resting on the spline tops, on the table, tilted or upside down). Any score counts only when no part of either robot is within 5 mm of the slip yoke and it moved less than 1 mm over the last second. The trial ends early once the score has been 1.0 for 1 s.",
+  "run_limit": "1,200 steps (1 minute at 20 Hz)",
+  "reset_notes": "Lift the slip yoke off the shaft and stand it back on the table at its starting place, ears up and pointing 70 degrees from the far yoke's ear line. Nothing is consumed.",
+  "fidelity": "Rigid parts; no joint turns: only the static phase and seated depth are scored, not the output's uneven speed. Real slip yokes have many more splines (25 to 32 on 1310-series yokes); this has six, 60 degrees apart, so every wrong position is 60 degrees out, the 6 mm splines index reliably in simulation, and two in-phase positions remain. Bore: a 3 mm 45-degree lead-in bevel, lands start 6 mm up; the play is 4.2 degrees each way (calculated). Friction 0.4 on both parts; slip yoke weighs 42 g.",
+  "scores": "Dream-1 run: 0.0; demo: 1.0",
+  "media": "M-BA6BUR"
+}

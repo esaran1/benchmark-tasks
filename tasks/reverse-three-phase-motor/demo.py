@@ -10,7 +10,7 @@ slipped in the fingers. Then the robot waits clear of everything while the teste
 
 Environment: DEMO_VARIANT selects a failure variant (README, Scripted demo):
   cyclic      move all three leads one socket along (U->V, V->W, W->U): the phase sequence is unchanged
-  half_home   the correct swap, but the last plug pushed in only part way (in its socket, not home)
+  half_home   the correct swap, but the last plug pushed in only to 11 mm (in its socket, not home)
   unplug_one  the correct swap, but the last plug left lying on the table in front of its socket
   hold        the correct swap, but the left arm keeps hold of the last plug
   none        nothing moved
@@ -197,12 +197,31 @@ def insert(ctx, arm, lead: str, socket: int, seat_to: float = SEAT_TO, pre: floa
     yield from arm.move(g0 + ay * dl, duration=0.6)
     yield from wait(0.2)
     yield from align(3)
-    for _attempt in range(3):                        # enter 5 mm; if the tip did not go in, back off and line up again
+    for _attempt in range(4):                        # enter 5 mm; if the tip did not go in, re-grip and line up again
         yield from arm.move(g0 + ay * dl + ax * (pre + 0.005), duration=0.8)
         yield from wait(0.2)
         if ctx.depth(lead, socket) >= 0.002:
             break
-        yield from arm.move(g0 + ay * dl, duration=0.6)
+        # the plug slipped or turned in the fingers (its lead drags): let go, pinch it again GRASP_BACK from its lead
+        # end where it lies now, and aim from there
+        from yam_arena.constants import FINGER_CLOSED
+
+        p, a = ctx.plug(lead)
+        here = arm.tcp()
+        yield from arm.grip(FINGER_PINCH, 0.5)
+        yield from arm.move(here + [0, 0, 0.015], duration=0.4)
+        g = p - a * (T.PL / 2 - GRASP_BACK)
+        g[2] = _gz(T)
+        yield from arm.move(g + [0, 0, 0.015], duration=0.5)
+        yield from arm.move(g, duration=0.4)
+        yield from arm.grip(FINGER_CLOSED, 0.5)
+        tcp = arm.tcp()
+        p, _a = ctx.plug(lead)
+        off = (tcp - p)[:2] @ ax[:2]
+        g0 = mouth + ax * (-pre - T.PL / 2 + off)
+        g0[2] = _gz(T)
+        dl = 0.0
+        yield from arm.move(g0, duration=0.6)
         yield from align(3)
     g = g0 + ay * dl + ax * (seat_to + pre)
     yield from arm.move(g, duration=1.5)
@@ -257,7 +276,7 @@ def strategy(ctx, arms, name):
     yield from pick(ctx, L, u)
     yield from L.move(hold_l, duration=1.5)
     yield from move_plug(ctx, Rt, w, 0, park_r)            # W's plug into U
-    last_seat = 0.007 if name == "half_home" else SEAT_TO
+    last_seat = 0.011 if name == "half_home" else SEAT_TO
     yield from carry_to(ctx, L, 2, duration=2.5)
     if name == "unplug_one":                               # lay it on the table, tip 10 mm short of W
         R = T.drive_rot()

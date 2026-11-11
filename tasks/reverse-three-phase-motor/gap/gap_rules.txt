@@ -32,3 +32,10 @@ Score rule: as above, plus one more 0 condition: the robot has touched a plug or
 Strategies and expected scores, states 0-9: correct 1.0, cyclic 0.0, none 0.0.
 Variants on state 0 in the same batch: half_home 0.5 (last plug pushed to 7 mm, left there), unplug_one 0.0, hold 0.0.
 PASS: every run present and every score equal to its expected value (compile.py), on >= 10 states.
+
+=== Rerun 3, correct strategy only (written 2026-11-11T07:36:16Z, BEFORE the batch) ===
+Why: in rerun 2, correct scored 0.0 on state 8 (the grey plug slipped in the fingers and never entered U); every other
+run matched. demo.py's insert() now re-grips a plug at its measured pose after a failed 5 mm entry (up to 4 tries).
+task.py (the score) is unchanged since rerun 2. Rerun: correct on states 0-9, expected 1.0 on every state. The cyclic,
+none and variant results of rerun 2 stand (none never calls insert(); cyclic and the variants are scored 0 or 0.5 by
+the rule whatever insert() does, and their outcomes are reported as run).

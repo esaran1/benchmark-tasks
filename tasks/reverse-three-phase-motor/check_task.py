@@ -133,7 +133,7 @@ if abs(T.FWD_MOVE - (T.LINE_Y + T.TOTE[1] / 2)) > 1e-12:
     bad.append("FWD_MOVE is not the distance for the tote's trailing face to pass the green line")
 
 # -- fidelity --------------------------------------------------------------------------------------------------------
-fid = ["not simulated electrically", "computed from the lead order", f"slider at {g(T.TOTE_SPEED)} m/s",
+fid = ["not simulated electrically", "computed from the lead order", f"slider at {g(T.TOTE_SPEED)} m/s", "fully plastic (no restoring force",
        f"{T.LEAD_OBJS[0].segments} rigid {cm(T.SEG)} cm segments",
        f"sockets {mm(T.CAV_W)} x {mm(T.CAV_H)} mm for a {mm(T.PW)} x {mm(T.PH)} mm plug"]
 for p in fid:

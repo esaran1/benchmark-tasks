@@ -196,7 +196,17 @@ steps). The scripted demo finishes in 826 steps. There are no random seeds: `obj
   as a rule. The conveyor's tote is a slider on the bed, driven at 0.1 m/s when the supply is on; the pointer disc is
   spun on its pin. Neither is driven through a belt or gears.
 - **Leads** are chains of 12 rigid 2 cm segments with bending springs (0.01 N m/rad per joint, no twist or stretch),
-  anchored at the gland. They start in a fixed bow so each has 6 cm of slack, enough for any plug to reach any socket.
+  anchored at the gland. The springs' rest shape is reset to the lead's current shape every control step, so a lead is
+  fully plastic: it has no restoring force and keeps whatever shape it is left in, like a PVC lead lying on a table. An
+  earlier version with springs that rested straight let a bowed lead push its plug into a socket by itself (a plug left
+  10.7 mm in crept home in about 20 s); the plastic leads stop that. The leads start in a fixed bow so each has 6 cm of
+  slack, enough for any plug to reach any socket.
+- **Settling of a loose plug:** a plug left lying outside a socket can still slide slowly while its lead settles over
+  the other leads. In a 40 s test (the `unplug_one` variant held longer), a plug the demo put down 10 mm in front of W
+  (commanded) was 2.8 mm in front of the face once the arm had cleared, then crept towards it at about 0.12 mm/s (to
+  0.4 mm inside the face 30 s later). A plug inside a socket did not move (7.06 mm deep for 30 s), and the seated plugs
+  stayed seated (24.8 to 26.0 mm). Calculated, not run: at 0.12 mm/s a plug at the face would take about 125 s to creep
+  15 mm in, longer than the 90 s run limit; if it ever did, the tester would count it as home.
 - **Plugs and sockets:** plugs are rigid 55 x 16 x 14 mm boxes with no contacts or latch, held in a socket only by its
   walls and friction. Sockets are 22 x 19 mm and 26 mm deep, so a plug has 3 mm of play each side and 5 mm above it;
   real plug-in terminal blocks fit tighter. Seating is judged by depth.

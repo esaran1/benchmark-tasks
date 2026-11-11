@@ -18,5 +18,6 @@
   "run_limit": "1,800 steps (1.5 minutes at 20 Hz)",
   "reset_notes": "Take the brace out of the seats and lay it back on the table along y, centred at x 20, y 0. The gate drops back onto its stop by itself. Nothing is consumed.",
   "fidelity": "Rigid bodies. The gate is a pin-jointed parallelogram with light damping and no friction at its pins; the hinge-side stile is fixed, standing for a stile hung on hinges from a fixed post. A real gate's nailed corners resist racking a little on their own; these resist none, so the brace alone holds the gate, and the 80 g weight on the latch side stands in for the leverage of a real gate's own weight. The brace is a loose push-fit member in V-notch seats instead of a brace cut to fit and nailed; it carries the load the same way, in compression on its ends, and cannot pull. Its length is the square frame's seat-to-seat length less 0.8 mm, so seated on the compression diagonal it stops the gate about 1.6 mm below square. Friction 0.6 (gate, brace) and 0.9 (rubber stop).",
-  "scores": "Dream-1 run: 0.0; demo: 1.0"
+  "scores": "Dream-1 run: 0.0; demo: 1.0",
+  "media": "M-3VDHWH"
 }

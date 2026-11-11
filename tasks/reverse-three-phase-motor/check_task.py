@@ -77,7 +77,7 @@ if T.START != (0, 1, 2) or T.BOW != 1 or (T.FACE_X, T.FACE_Y, T.YAW) != (0.36, 0
     bad.append("state 0 must be brown U, black V, grey W, bow left, drive at x 36 cm, y 0, square")
 lay = T.LEAD_OBJS[0].body_layout()
 bow_y = float(lay[:, 1].max())
-bow_x = float(lay[int(np.argmax(lay[:, 1])), 0]) + T.SEG / 2
+bow_x = float(lay[lay[:, 1] >= bow_y - 1e-4, 0].mean()) + T.SEG / 2   # middle of the bow's widest part
 for o in T.LEAD_OBJS[1:]:
     if not np.allclose(o.body_layout(), lay):
         bad.append("the three leads' starting shapes differ at state 0")
@@ -133,7 +133,7 @@ if abs(T.FWD_MOVE - (T.LINE_Y + T.TOTE[1] / 2)) > 1e-12:
     bad.append("FWD_MOVE is not the distance for the tote's trailing face to pass the green line")
 
 # -- fidelity --------------------------------------------------------------------------------------------------------
-fid = ["not simulated electrically", "computed from the lead order", f"slider at {g(T.TOTE_SPEED)} m/s", "fully plastic (no restoring force",
+fid = ["not simulated electrically", "computed from the lead order", f"slider at {g(T.TOTE_SPEED)} m/s", "fully plastic, a simplification: no restoring force",
        f"{T.LEAD_OBJS[0].segments} rigid {cm(T.SEG)} cm segments",
        f"sockets {mm(T.CAV_W)} x {mm(T.CAV_H)} mm for a {mm(T.PW)} x {mm(T.PH)} mm plug"]
 for p in fid:

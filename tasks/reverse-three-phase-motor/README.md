@@ -76,11 +76,11 @@ inspect-robots run --embodiment yam_arena --policy dream \
 
 `task_score` prints the trial's score: 1.0 on success, otherwise `score()` at the end of the episode.
 
-Dream-1 scored 0.0 in its one run of this command and ran all 1,800 steps. Its right arm reached in around the
-terminal box and the gearbox for most of the run and the left arm moved over the table, but no plug was moved: in the
-last frame all three plugs are still in their starting sockets (brown U, black V, grey W). That run was made before two
-fixes described under Fidelity (plastic leads, and the supply staying off until the robot touches a plug or lead); in
-it the conveyor ran backwards in the first seconds, before the robot reached in.
+Dream-1 scored 0.0 in its run of this command on the final code and ran all 1,800 steps. Its left arm went up to the
+left end of the conveyor's guard and its right arm reached in around the gearbox and the right side of the terminal box,
+but no plug was moved: in the last frame all three plugs are still in their starting sockets (brown U, black V, grey W)
+and the tote has not moved, because the supply never came on. (An earlier Dream-1 run, made before the two fixes
+described under Fidelity and Scoring, also scored 0.0 without moving a plug; its video is not used.)
 
 ## Scripted demo
 
@@ -93,59 +93,83 @@ MOTOR_STATE=3 python demo.py task.py out --no-record             # another start
 1. The left arm pinches the plug in U 10 mm from its lead end, pulls it straight out and holds it up and to the left.
 2. The right arm pinches the plug in W, pulls it out, lifts it over the middle lead and carries it to U. It lowers the
    plug in front of U, slides it to 2 mm short of the face, lines its tip up with the socket from the plug's measured
-   position, pushes it 5 mm in (backing off and lining up again if it did not enter), then pushes it home to 24.5 mm,
-   lets go and moves away.
+   position and pushes it 5 mm in. If the tip has not entered (the plug slipped or turned in the fingers), it lets go,
+   pinches the plug again where it now lies, lines it up and tries again (four tries in all). Then it pushes the plug home to
+   24.5 mm, lets go and moves away.
 3. The left arm carries its plug over to W and pushes it home the same way, lets go and moves away.
 4. The robot is clear, so the tester switches the supply on: the conveyor runs forward and the tote crosses the green line.
 
-DEMORESULT
+On the task's layout it scores 1.0 in 934 steps (the run limit is 1,800): brown ends 24.8 mm into W, black 24.8 mm into
+V and grey 26.0 mm into U, the tote 130 mm forward, no robot point within 20 mm of the box, gland or leads.
 
 ### Failure variants
 
-VARIANTS
+Each was run on the task's layout (state 0) through the same `task_score` path (`DEMO_VARIANT=... python demo.py task.py
+out --no-record`), on the final scoring code, with the demo as it was before the re-grip step was added (that step only
+acts when a plug fails to enter its socket):
+
+| Variant | What it does | Score | Why |
+|---|---|---|---|
+| `cyclic` | Moves all three leads one socket along (U to V, V to W, W to U) and pushes them home | 0.0 | All home (brown V 23.7, black W 24.3, grey U 23.3 mm), but the phase sequence is unchanged: the supply came on and the conveyor ran backwards (tote 130 mm back) |
+| `half_home` | The correct swap, but the last plug (brown, into W) is pushed in only to 11 mm | 0.5 | The order reverses the motor and each plug is in its own socket, but brown is 10.9 mm in, short of its 15 mm mark: the supply never came on |
+| `unplug_one` | The correct swap, but the last plug is laid on the table in front of W | 0.0 | Brown is 2.7 mm short of the face, not in a socket; with a phase missing the motor does not start |
+| `hold` | The correct swap, but the left arm keeps hold of the last plug | 0.0 | The order reverses the motor and all three are home (brown W 23.7 mm), but the robot is touching it (0 mm), so the supply stays off |
+| `none` | Nothing moved | 0.0 | The robot never touches a plug or lead, so the supply stays off (plugs 23.4 mm in) |
+
+A sixth variant, two swaps in a row (U with W, then V with W, ending in a cyclic shift), was dropped: in its one run
+(with the earlier, elastic leads), pulling the black plug out of V also dragged the grey plug out of U, because after
+the first swap the grey lead lies across V. It scored 0, but for a plug left out, not for the order. A cyclic shift is
+already tested by `cyclic`.
 
 ## Gap test
 
-Before the README, the full-score demo's recording or the media were made, the correct strategy and two wrong ones were
-run with the robot on 10 starting states, under a score rule written down and committed before the batch
-(`gap/gap_rules.txt`, the score below). The states change the starting order of the leads (all six orders of brown,
-black and grey over U, V and W occur; each is by definition the order that runs backwards), the side the leads bow to,
-the drive's position (up to 10 mm in x and y) and its yaw (up to 5 degrees). The batch ran a frozen copy of the task
-folder through `demo.py --no-record`, the same `task_score` path as a trial.
+Before the README, the recorded demo or the media were made, the correct strategy and two wrong ones were run with the
+robot on 10 starting states, each batch under a score rule written down and committed before it ran
+(`gap/gap_rules.txt`). The states change the starting order of the leads (all six orders of brown, black and grey over
+U, V and W occur; each is by definition the order that runs backwards), the side the leads bow to, the drive's position
+(up to 10 mm in x and y) and its yaw (up to 5 degrees). Each batch ran a frozen copy of the task folder through
+`demo.py --no-record`, the same `task_score` path as a trial.
 
 ```bash
 bash gap/gworker.sh FROZEN_COPY OUT MOTOR_STATE "0 1 2 3 4 5 6 7 8 9" "correct cyclic none"
 python gap/compile.py OUT gap/expected.json
 ```
 
+There were three batches. The first (elastic leads, supply on from the start) matched on all 30 runs, but two problems
+found afterwards changed the physics and the tester (see Fidelity): the leads became plastic, and the supply now stays
+off until the robot touches a plug or lead. The second batch reran everything on that final scoring code; it matched
+on 29 of 30 runs, all but `correct` on state 8, where the grey plug slipped in the fingers and never entered U (score
+0.0, which the rule gives for that outcome). The demo now re-grips a plug whose tip has not entered after a 5 mm push,
+and a third batch reran `correct` on all 10 states with that demo. Final results (`correct` from the third batch,
+`cyclic` and `none` from the second; score and steps):
+
 | State | Start order (U, V, W) | correct | cyclic | none |
 |---|---|---|---|---|
-| 0 | brown, black, grey | 1.0 (826 steps) | 0.0 (1468 steps) | 0.0 |
-| 1 | black, brown, grey | 1.0 (911 steps) | 0.0 (1280 steps) | 0.0 |
-| 2 | grey, black, brown | 1.0 (826 steps) | 0.0 (1800 steps) | 0.0 |
-| 3 | brown, grey, black | 1.0 (895 steps) | 0.0 (1376 steps) | 0.0 |
-| 4 | black, grey, brown | 1.0 (972 steps) | 0.0 (1602 steps) | 0.0 |
-| 5 | grey, brown, black | 1.0 (839 steps) | 0.0 (1404 steps) | 0.0 |
-| 6 | brown, black, grey | 1.0 (920 steps) | 0.0 (1390 steps) | 0.0 |
-| 7 | grey, black, brown | 1.0 (855 steps) | 0.0 (1698 steps) | 0.0 |
-| 8 | black, brown, grey | 1.0 (958 steps) | 0.0 (1696 steps) | 0.0 |
-| 9 | brown, grey, black | 1.0 (929 steps) | 0.0 (1482 steps) | 0.0 |
+| 0 | brown, black, grey | 1.0 (934) | 0.0 (1286) | 0.0 (160) |
+| 1 | black, brown, grey | 1.0 (931) | 0.0 (1368) | 0.0 (160) |
+| 2 | grey, black, brown | 1.0 (1085) | 0.0 (1550) | 0.0 (160) |
+| 3 | brown, grey, black | 1.0 (749) | 0.0 (1606) | 0.0 (160) |
+| 4 | black, grey, brown | 1.0 (890) | 0.0 (1454) | 0.0 (160) |
+| 5 | grey, brown, black | 1.0 (782) | 0.0 (1362) | 0.0 (160) |
+| 6 | brown, black, grey | 1.0 (904) | 0.0 (1550) | 0.0 (160) |
+| 7 | grey, black, brown | 1.0 (1288) | 0.0 (1364) | 0.0 (160) |
+| 8 | black, brown, grey | 1.0 (974) | 0.0 (1578, not completed) | 0.0 (160) |
+| 9 | brown, grey, black | 1.0 (824) | 0.0 (1604) | 0.0 (160) |
 
 No mismatches against the expected scores (correct 1.0, cyclic 0, none 0). Every correct run swapped the leads in U and
-W, ended with all three plugs 23.8 to 26.0 mm in, and the tote 130 mm forward, in 826 to 972 steps. In every `none`
-run the tester switched on and the conveyor ran backwards (tote 130 mm back). On 8 of the 10 states the cyclic script
-completed its rearrangement: all three plugs home in a cyclic shift of the start, the tester switched on, and the
-conveyor ran backwards (tote 130 mm back). On states 2 and 5 the script failed to seat its plugs (on state 2 it ran
-out of steps with no plug in a socket; on state 5 the brown plug was left out), so those two zeros are for an
-incomplete circuit, not for the phase sequence. That the score is 0 for every even order is also checked directly:
-`check_task.py` scores all six orders of the three leads.
+W and ended with all three plugs 19.1 to 26.0 mm in and the tote 130 mm forward, in 749 to 1288 steps. In every `none`
+run the robot never touched a plug or lead, the supply stayed off, and the plugs stayed 22.9 to 24.6 mm in. On 9 of the 10 states the cyclic
+script completed its rearrangement: all three plugs home in a cyclic shift of the start; the supply came on and the
+conveyor ran backwards (tote 130 mm back). On state 8 it left the brown plug outside its socket, so that 0 is for an
+incomplete circuit, not for the phase sequence. (In the first batch the cyclic script had failed the same way on states
+2 and 5.) That the score is 0 for every even order is also checked directly: `check_task.py` scores all six orders of the
+three leads.
 
-Before the robot work, a physics check with no robot (`MOTOR_STATE` 0, with the first socket size tried, 20 x 16.5 mm)
-held the start for 8 s: the plugs stayed 24.9 mm in and the tester ran the tote 130 mm backwards (score 0); with the
-start order relabelled as if two leads had been swapped, it ran the tote forwards and the score reached 1.0. The
-sockets were then widened to 22 x 19 mm because the demo's second plug could not enter (it was carried 1.3 mm high and
-drifted 3 to 4.5 mm sideways); the `none` runs above repeat the hold check with the final sockets (plugs 24.1 to 25.1 mm
-in, conveyor backwards).
+Before the robot work, a physics check with no robot (`MOTOR_STATE` 0, with the first socket size tried, 20 x 16.5 mm,
+and the first, elastic leads) held the start for 8 s: the plugs stayed 24.9 mm in. With the start order relabelled as if
+two leads had been swapped, the tester ran the tote forwards and the score reached 1.0; with the true start order it ran
+it backwards and the score stayed 0. The sockets were then widened to 22 x 19 mm because the demo's second plug could not
+enter (it was carried 1.3 mm high and drifted 3 to 4.5 mm sideways).
 
 ## Scoring
 
@@ -167,9 +191,9 @@ the opening's top) and its 8 mm mark is inside the face; it is **home** when its
 
 The supply is off at the start. Once the robot has touched a plug or a lead (a robot point within 2 mm of one), the
 tester switches the supply on whenever the robot has been clear (20 mm), the plugs still and all three plugs home for
-1 s, and off again if any of that stops holding. A robot that never touches a plug or lead scores 0, and the conveyor
-never runs. The motor then runs forward for an odd order and backward for an even
-one; with a plug that is not home it does not start (a missing phase). The belt moves the tote at 0.1 m/s, up to 130 mm
+1 s, and off again if any of that stops holding. The motor then runs forward for an odd order and backward for an even
+one; with a plug that is not home it does not start (a missing phase). A robot that never touches a plug or lead scores
+0, and the conveyor never runs. The belt moves the tote at 0.1 m/s, up to 130 mm
 either way. The episode ends early on success, once the score has been 1.0 for 1 s.
 
 Partial credit. The start is already a complete, working circuit, so no credit can go to a complete circuit as such, or
@@ -182,10 +206,10 @@ the three pairs scores 1.0), which arm moves which plug, the order of moves and 
 
 ## Runtime and seeds
 
-The Dream-1 run above took 431 s of wall time for its 1,800 steps on one NVIDIA L40S with the GPU to itself (the GPU
+The Dream-1 run above took 434 s of wall time for its 1,800 steps on one NVIDIA L40S with the GPU to itself (the GPU
 queue's start and end times), including the simulator's start-up. Scripted runs go at about 3 steps/s: physics and
 rendering of the three leads and both robots take most of it, the scorer's checks about 13% (profiled over 300 demo
-steps). The scripted demo finishes in 826 steps. There are no random seeds: `object_jitter=0`, and the layout is fixed by
+steps). The scripted demo finishes in 934 steps. There are no random seeds: `object_jitter=0`, and the layout is fixed by
 `MOTOR_STATE` (0, the task's layout, by default).
 
 ## Fidelity
@@ -197,7 +221,8 @@ steps). The scripted demo finishes in 826 steps. There are no random seeds: `obj
   spun on its pin. Neither is driven through a belt or gears.
 - **Leads** are chains of 12 rigid 2 cm segments with bending springs (0.01 N m/rad per joint, no twist or stretch),
   anchored at the gland. The springs' rest shape is reset to the lead's current shape every control step, so a lead is
-  fully plastic: it has no restoring force and keeps whatever shape it is left in, like a PVC lead lying on a table. An
+  fully plastic: it has no restoring force and keeps whatever shape it is left in. That is a simplification: a real PVC
+  lead lying on a table mostly stays where it is put, but has a little springiness. An
   earlier version with springs that rested straight let a bowed lead push its plug into a socket by itself (a plug left
   10.7 mm in crept home in about 20 s); the plastic leads stop that. The leads start in a fixed bow so each has 6 cm of
   slack, enough for any plug to reach any socket.
@@ -229,8 +254,8 @@ steps). The scripted demo finishes in 826 steps. There are no random seeds: `obj
 - **Conveyor:** a yellow guard plate along the belt's front edge with two black arrows pointing right, a red line 6 cm
   left and a green line 6 cm right of the tote's starting centre; a blue 6 x 8 x 4 cm tote (150 g) on the belt.
 - **Tester:** a switch on the supply, worked by the operator (or an interlock on a light curtain around the box,
-  gland and leads): on whenever the robot has been clear of them for 1 s with all three plugs home, including at the
-  start, and off as soon as the robot comes near. The belt stops at end stops 130 mm either side of the tote's start.
+  gland and leads): off at the start; once the robot has touched a plug or lead, on whenever the robot has been clear
+  of them for 1 s with all three plugs home, and off as soon as the robot comes near. The belt stops at end stops 130 mm either side of the tote's start.
   Trials are safe: the supply is 24 V and off whenever the robot is near the leads.
 
 Reset: pull the three plugs out, push brown into U, black into V and grey into W until the 15 mm mark is hidden (24 mm

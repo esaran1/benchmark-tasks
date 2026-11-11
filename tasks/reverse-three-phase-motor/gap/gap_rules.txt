@@ -39,3 +39,7 @@ run matched. demo.py's insert() now re-grips a plug at its measured pose after a
 task.py (the score) is unchanged since rerun 2. Rerun: correct on states 0-9, expected 1.0 on every state. The cyclic,
 none and variant results of rerun 2 stand (none never calls insert(); cyclic and the variants are scored 0 or 0.5 by
 the rule whatever insert() does, and their outcomes are reported as run).
+
+Note after rerun 2: the half_home variant's script pushed its last plug to 7 mm; with plastic leads it stayed at 7.06 mm,
+below the 8 mm in-mark, so it scored 0.0 (correct for that state; the variant's depth was wrong). Its depth was changed
+to 11 mm and it was rerun once on the same scoring code: 0.5 (brown 10.89 mm in W).

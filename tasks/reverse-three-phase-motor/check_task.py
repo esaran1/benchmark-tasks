@@ -120,7 +120,7 @@ scoring = [f"tape marks {g(T.IN_MM)} mm and {g(T.HOME_MM)} mm from its tip",
            f"The plugs are measured once, when the robot, having touched a plug or lead (sim: a robot point within "
            f"{g(T.TOUCH_MM)} mm), has been clear for {g(T.HOLD_STEPS / T.HZ)} s",
            f"no part of either robot within {g(T.RELEASE_MM)} mm of the terminal box, the gland or any lead",
-           f"no plug moving more than {g(T.STILL_MM)} mm over that second", "it is what is scored",
+           f"no plug moving more than {g(T.STILL_MM)} mm over that second", "that measurement is what is scored",
            f"If the robot comes back within {g(T.RELEASE_MM)} mm, the measurement is dropped",
            "The supply is switched on only if the measurement has all three plugs home",
            f"the belt has carried the tote wholly past the green (forward) line ({mm(T.FWD_MOVE)} mm forward)", "otherwise 0.5",
@@ -146,10 +146,10 @@ if abs(T.FWD_MOVE - (T.LINE_Y + T.TOTE[1] / 2)) > 1e-12:
     bad.append("FWD_MOVE is not the distance for the tote's trailing face to pass the green line")
 
 # -- fidelity --------------------------------------------------------------------------------------------------------
-fid = ["Not simulated electrically", "computed from the lead order", f"slider at {g(T.TOTE_SPEED)} m/s",
-       "fully plastic (a simplification)", f"{T.LEAD_OBJS[0].segments} rigid {cm(T.SEG)} cm segments",
-       "no electrical contact pins or latch", f"sockets {mm(T.CAV_W)} x {mm(T.CAV_H)} mm, plug {mm(T.PW)} x {mm(T.PH)} mm",
-       "creep about 0.07-0.09 mm/s after release (a sim artifact); scoring uses the depths at release"]
+fid = ["Not simulated electrically", "computed from the lead order", "fully plastic (simplified)",
+       f"{T.LEAD_OBJS[0].segments} rigid {cm(T.SEG)} cm segments", "no electrical contact pins or latch",
+       f"Simulated plugs creep up to 0.09 mm/s after release, so depth is scored once, {g(T.HOLD_STEPS / T.HZ)} s after "
+       "the robot is clear", "Real ones should not", "(reasoned, untested on hardware)"]
 for p in fid:
     need(J["fidelity"], "task.json fidelity", p)
 for p in [f"chains of {T.LEAD_OBJS[0].segments} rigid {cm(T.SEG)} cm segments with bending springs "
@@ -191,6 +191,16 @@ def _rep(where, released=True, still=True, tote_mm=0.0, touched=True, latched_at
     rep["latched"] = (T.latch_of(T.measure(_objs(latched_at))) if latched_at else T.latch_of(rep)) if ok else None
     return rep, T.score_of(rep)
 
+
+# the measurement time: 1 s after the robot is clear, in the code and in both texts
+if abs(T.HOLD_STEPS / T.HZ - 1.0) > 1e-12:
+    bad.append("the latch time HOLD_STEPS / HZ is not 1 s")
+_when = (f"the operator measures each plug's depth {g(T.HOLD_STEPS / T.HZ)} s after the robot's last movement clear of "
+         "the box, gland and leads, using the depth marks or a ruler, before switching the supply on")
+need(J["scoring"], "task.json scoring", "In the real trial " + _when)
+need(README, "README real-world", "The operator measures each plug's depth " + f"{g(T.HOLD_STEPS / T.HZ)} s after the "
+     "robot's last movement clear of the box, gland and leads")
+need(README, "README fidelity", "A real plug should stay where it is left (reasoned, not tested on hardware)")
 
 # no measurement, no score (whatever the plugs and the tote show)
 if T.score_of({"latched": None, "past_forward_line": True}) != 0.0:

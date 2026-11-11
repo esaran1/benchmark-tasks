@@ -105,7 +105,8 @@ MOTOR_STATE=3 python demo.py task.py out --no-record             # another start
    pinches the plug again where it now lies, lines it up and tries again (four tries in all). Then it pushes the plug home to
    24.5 mm, lets go and moves away.
 3. The left arm carries its plug over to W and pushes it home the same way, lets go and moves away.
-4. The robot is clear, so the tester switches the supply on: the conveyor runs forward and the tote crosses the green line.
+4. Once the robot has been clear of the box, gland and leads for 1 s, the plugs are measured: all three are home, in a
+   reversing order, so the tester switches the supply on, the conveyor runs forward and the tote crosses the green line.
 
 On the task's layout it scores 1.0 in 934 steps (the run limit is 1,800): brown ends 24.8 mm into W, black 24.8 mm into
 V and grey 26.0 mm into U, the tote 130 mm forward, no robot point within 20 mm of the box, gland or leads.
@@ -245,9 +246,14 @@ steps). The scripted demo finishes in 934 steps. There are no random seeds: `obj
   left at 13.3 to 13.5 mm reached 15.3 mm 22 to 28 s later), and a loose plug in front of one about 0.05 to 0.12 mm/s.
   The cause is the soft, plastic leads yielding after the push; four attempts to stop it in the physics (rest shape
   frozen after release, plug damping, stiffening released leads, pinning untouched leads) either left it or broke the
-  handling. A real plug stays where it is left. Because the plugs are measured once, 1 s after the robot is clear, and
+  handling. A real plug should stay where it is left (reasoned, not tested on hardware): a real PVC lead does relax a little
+  after being bent, but the force it can exert along a short lead is small, far below what it takes to slide a
+  push-fit plug in its socket, which the plug's grip and its friction on the table resist. Because the plugs are measured once, 1 s after the robot is clear, and
   that measurement is what is scored and what decides whether the supply comes on, creep after it cannot change the
-  score. LATCHNOTE
+  score. What remains is the creep in the 1 s between the robot clearing and the
+  measurement: about 0.2 to 0.3 mm in the runs below (`half_home13`: 13.57 mm when the robot was clear, 13.77 mm when
+  measured, 14.66 mm at the end; score 0.5 throughout). Run to run, the simulated depths also vary by about 1 to 2 mm
+  for the same script, so every depth in this README is approximate.
 - **Plugs and sockets:** plugs are rigid 55 x 16 x 14 mm boxes with no electrical contact pins or latch, held in a
   socket only by its walls and friction. Sockets are 22 x 19 mm and 26 mm deep, so a plug has 3 mm of play each side and 5 mm above it;
   real plug-in terminal blocks fit tighter. Seating is judged by depth.
@@ -275,6 +281,11 @@ steps). The scripted demo finishes in 934 steps. There are no random seeds: `obj
   gland and leads): off at the start; once the robot has touched a plug or lead, on whenever the robot has been clear
   of them for 1 s with all three plugs home, and off as soon as the robot comes near. The belt stops at end stops 130 mm either side of the tote's start.
   Trials are safe: the supply is 24 V and off whenever the robot is near the leads.
+
+**Measuring in the real trial.** The operator measures each plug's depth 1 s after the robot's last movement clear of
+the box, gland and leads (no part of the robot within 20 mm of them), using the depth marks or a ruler, and notes which
+plug is in which socket, before switching the supply on. That measurement is scored. If the robot comes back within
+20 mm, the operator switches off, and measures again 1 s after it is clear once more.
 
 Reset: pull the three plugs out, push brown into U, black into V and grey into W until the 15 mm mark is hidden (24 mm
 in), lay each lead in its bow to the left as in the setup, bring the tote back to the centre of the belt between the

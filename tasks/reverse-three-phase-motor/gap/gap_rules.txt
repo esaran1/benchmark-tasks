@@ -58,3 +58,9 @@ Strategies and expected scores, states 0-9: correct 1.0, cyclic 0.0, none 0.0.
 Variants afterwards, state 0, to 1,800 steps: half_home (11 mm) 0.5, half_home13 (12.5 mm) 0.5, unplug_one (6 mm short)
 0.0, hold 0.0, reenter 1.0 (cyclic and none from the batch).
 PASS: every run present and every score equal to its expected value (compile.py), on >= 10 states.
+
+Note 2026-11-11T22:54:03Z, during rerun 4: under the user's gap-test sizing rule (the correct strategy on all 10 states;
+each wrong strategy on state 0 plus 2 other states, and on all 10 only if those 3 disagree), the remaining queued
+wrong-strategy runs were dropped: cyclic and none on state 9. By then cyclic and none had run on states 0-8 (s7 none
+in progress, left to finish) with consistent results (all 0.0). correct still runs on all 10 states. The pass criteria
+are unchanged: every run that was made must equal its expected score, correct must score 1.0 on all 10 states.

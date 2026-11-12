@@ -18,5 +18,6 @@
   "run_limit": "1,800 steps (1.5 minutes at 20 Hz)",
   "reset_notes": "Pull the three plugs out, push brown into U, black into V and grey into W until the 15 mm mark is hidden (24 mm in), lay each lead in its bow to the left as in the setup, bring the tote back to the centre of the belt between the lines, and turn the disc's stripe to the top. Nothing is consumed.",
   "fidelity": "Not simulated electrically: motor direction is computed from the lead order (odd permutation = forward). Leads: rigid 2 cm segments, fully plastic. Plugs: rigid boxes held only by socket walls and friction (no grip, contacts or latch). Plugs in a socket creep up to about 0.3 mm/s for a few seconds after release (about 1.3 mm), so depth is scored once, 1 s after the robot has moved clear. Real ones should not: each socket's sprung side contact (designed, untested) holds the plug from 8 mm in.",
-  "scores": "Dream-1 run: 0.0; demo: 1.0"
+  "scores": "Dream-1 run: 0.0; demo: 1.0",
+  "media": "M-WGZYTN"
 }

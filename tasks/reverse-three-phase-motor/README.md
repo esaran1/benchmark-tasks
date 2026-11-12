@@ -259,25 +259,26 @@ variants; the recorded demo took 441 s for its 934 steps (2.1 steps/s), 483 s of
   go, a plug keeps sliding for a few seconds, mostly towards and into its socket. In the final code's runs
   (`gap/creep_traces.json`, the tip depth every second) a plug inside a socket moved up to about 0.3 mm/s for about 5 to
   6 s after the gripper opened and then stopped: `half_home` 11.30 mm at release to 12.63 mm, `half_home13` 13.34 to
-  14.66 mm, about 1.3 mm in all. A loose plug in front of a socket drifted more slowly but for longer (`unplug_one`:
+  14.66 mm, about 1.3 mm in all. A loose plug in front of a socket drifted more slowly (mostly 0.04 to 0.16 mm/s, one second at 0.33 mm/s) but for
+  longer (`unplug_one`:
   -0.08 mm when measured to +1.81 mm by the end). The cause is the soft, plastic leads yielding after the push; four
   attempts to stop it in the physics (rest shape frozen after release, plug damping, stiffening released leads,
   pinning untouched leads) either left it or broke the handling. The simulated sockets hold a plug only by their walls
   and friction; there is no grip. A real plug should stay where it is left (reasoned, not tested on hardware): each real
-  socket has a sprung side contact (designed, untested; Real-world build) that holds the plug's tip pin at whatever
-  depth the robot leaves it, and a lead lying on the table cannot push or pull hard enough to slide the pin through it.
+  socket has a sprung side contact (designed, untested; Real-world build) that holds the plug at whatever depth from
+  8 mm in the robot leaves it, and a lead lying on the table cannot push or pull hard enough to slide the plug against it.
   Its inner, wired part makes the circuit only when the plug is home. Because the plugs are measured once, 1 s after the robot has
   moved clear, and that measurement is what is scored and what decides whether the supply comes on, creep after it
   cannot change the score. What remains is the creep between the gripper opening and the measurement: up to about
-  0.5 mm. In one run with the last plug pushed to 13.5 mm (`gap/creep_traces.json`, `half_home_at_13.5mm`), brown was
+  0.6 mm (0.43 to 0.62 mm in the three in-socket runs in `gap/creep_traces.json`). In one run with the last plug pushed to 13.5 mm (`gap/creep_traces.json`, `half_home_at_13.5mm`), brown was
   14.65 mm in as the gripper opened (robot 1.4 mm away), 14.93 mm when the robot was clear and 15.16 mm when measured,
   so it counted as home and the run scored 1.0; in the real build that plug would have stayed about 14.65 mm in and
-  scored 0.5. So a plug left 0.3 to 0.5 mm short of home can count as home. That is about what a tape mark or a ruler
+  scored 0.5. So a plug left up to about 0.6 mm short of home can count as home. That is about what a tape mark or a ruler
   resolves, and no strategy can aim for it. Run to run, the simulated depths also vary by about 1 to 2 mm for the same
   script, so every depth in this README is approximate.
-- **Plugs and sockets:** plugs are rigid 55 x 16 x 14 mm boxes with no electrical contact pins, grip or latch, held in
+- **Plugs and sockets:** plugs are rigid 55 x 16 x 14 mm boxes with no electrical contacts, grip or latch, held in
   a socket only by its walls and friction. Sockets are 22 x 19 mm and 26 mm deep, so a plug has 3 mm of play each side and 5 mm above it;
-  real plug-in terminal blocks fit tighter, and the real build's sockets grip the pin. Seating is judged by depth.
+  real plug-in terminal blocks fit tighter, and the real build's sockets grip the plug. Seating is judged by depth.
 - **Fixed parts:** the terminal box, motor, gearbox, conveyor and gland are one fixed body (screwed down in the real
   build).
 
@@ -292,13 +293,14 @@ variants; the recorded demo took 441 s for its 934 steps (2.1 steps/s), 483 s of
   three single-pole sockets 22 mm wide, 19 mm tall and 26 mm deep at table level, 50 mm apart, marked U, V, W from
   left to right (printed stand-ins for camlock-style power connectors).
   Each socket has a sprung side contact (designed, untested) and no axial spring: a phosphor-bronze leaf spring on one
-  side wall (like a banana-socket sleeve) presses sideways on the plug's tip pin once the pin is about 8 mm in. Its
-  purpose is to hold a plug at whatever depth the robot leaves it, so a real plug does not creep; nothing pushes it
-  back out. Only the inner part of the leaf, from 15 mm in, is wired, so the circuit is made only when the plug is
-  home.
+  side wall, flat from 8 mm deep to the back of the socket (its lead-in shallower than 8 mm), presses sideways on the
+  plug's side once its tip is 8 mm in, taking up the 3 mm of play. Its purpose is to hold a plug at whatever depth from
+  8 mm the robot leaves it, so a real plug does not creep; nothing pushes it back out. Only the leaf's inner part, from
+  15 mm deep, is wired; it touches the plug's brass tip band only once the tip is 15 mm in, so the circuit is made only
+  when the plug is home.
 - **Leads:** three 6 mm round PVC leads 24 cm long (brown, black, grey) from a 30 x 160 x 30 mm dark grey PLA gland plate screwed to
-  the table at x 12 to 15 cm, each ending in a 55 x 16 x 14 mm printed plug in the lead's colour (15 g) with a contact
-  pin at its tip (a 4 mm brass pin along the plug's axis), and tape marks 8 mm and 15 mm from the tip.
+  the table at x 12 to 15 cm, each ending in a 55 x 16 x 14 mm printed plug in the lead's colour (15 g) with a brass
+  contact band 4 mm wide round its tip, flush with the tip, and tape marks 8 mm and 15 mm from the tip.
 - **Conveyor:** a yellow PLA guard plate along the belt's front edge with two black painted arrows pointing right, a red
   tape line 6 cm left and a green tape line 6 cm right of the tote's starting centre; a blue PLA tote 6 x 8 x 4 cm
   (150 g) on the belt.

@@ -53,10 +53,12 @@ for _name in ("half_home", "half_home13"):
             and 4 <= _moving <= 7 and _d[-5:] == [0.0] * 5):
         bad.append(f"creep figures do not match the {_name} trace: peak {max(_d):.2f} mm/s, total {_total:.2f} mm, "
                    f"{_moving} s moving")
-_h = _tr["half_home_at_13.5mm"]["trace"]
-_gain = _tr["half_home_at_13.5mm"]["latched_brown_mm"] - next(r[1] for r in _h if r[0] == 820)
-if not (0.4 <= _gain <= 0.55):
-    bad.append(f"the README's 'up to about 0.5 mm' between release and measurement: trace shows {_gain:.2f} mm")
+_gains = {k: _tr[k]["latched_brown_mm"] - next(r[1] for r in _tr[k]["trace"] if r[0] == 820)    # gripper opening
+          for k in ("half_home", "half_home13", "half_home_at_13.5mm")}                          # the in-socket runs
+if not (0.55 <= max(_gains.values()) <= 0.65 and abs(min(_gains.values()) - 0.43) <= 0.01
+        and abs(max(_gains.values()) - 0.62) <= 0.01):
+    bad.append(f"the README's 'up to about 0.6 mm (0.43 to 0.62 mm)' between release and measurement: traces show "
+               f"{ {k: round(v, 2) for k, v in _gains.items()} }")
 
 # -- form ------------------------------------------------------------------------------------------------------------
 for where, text in (("README", README), ("task.json", json.dumps(J))):
@@ -165,9 +167,9 @@ if abs(T.FWD_MOVE - (T.LINE_Y + T.TOTE[1] / 2)) > 1e-12:
 # -- fidelity --------------------------------------------------------------------------------------------------------
 fid = ["Not simulated electrically", "computed from the lead order", "fully plastic", f"rigid {cm(T.SEG)} cm segments",
        "held only by socket walls and friction (no grip, contacts or latch)",
-       f"Simulated plugs creep up to about {CREEP_RATE:g} mm/s for a few seconds after release (about {CREEP_TOTAL:g} mm), "
+       f"Plugs in a socket creep up to about {CREEP_RATE:g} mm/s for a few seconds after release (about {CREEP_TOTAL:g} mm), "
        f"so depth is scored once, {g(T.HOLD_STEPS / T.HZ)} s after the robot has moved clear",
-       "Real ones should not: each socket's sprung side contact (designed, untested) holds the pin at any depth"]
+       "Real ones should not: each socket's sprung side contact (designed, untested) holds the plug from 8 mm in"]
 for p in fid:
     need(J["fidelity"], "task.json fidelity", p)
 for p in [f"chains of {T.LEAD_OBJS[0].segments} rigid {cm(T.SEG)} cm segments with bending springs "
@@ -220,14 +222,17 @@ need(README, "README real-world", "The operator measures " + f"{g(T.HOLD_STEPS /
      f"clear (no part of it within {g(T.RELEASE_MM)} mm of the box, gland or leads)")
 need(README, "README real-world", "sprung side contact (designed, untested) and no axial spring")
 need(J["setup"], "task.json setup", "each socket also has a sprung side contact, designed and untested, that holds the "
-     "plug's tip pin at whatever depth the robot leaves it, so a real plug does not creep; its inner, wired part makes the "
+     "plug at whatever depth from 8 mm in the robot leaves it, so a real plug does not creep; its inner, wired part makes the "
      "circuit only when the plug is home")
 need(README, "README real-world", "Each socket has a sprung side contact (designed, untested)")
-need(README, "README real-world", "Its purpose is to hold a plug at whatever depth the robot leaves it, so a real plug does not creep")
+need(README, "README real-world", "Its purpose is to hold a plug at whatever depth from 8 mm the robot leaves it, so a real plug does not creep")
+need(README, "README real-world", "flat from 8 mm deep to the back of the socket (its lead-in shallower than 8 mm)")
+need(README, "README real-world", "it touches the plug's brass tip band only once the tip is 15 mm in")
+need(README, "README real-world", "contact band 4 mm wide round its tip, flush with the tip")
 need(README, "README fidelity", "sprung side contact (designed, untested; Real-world build)")
 need(README, "README fidelity", f"about {CREEP_TOTAL:g} mm in all")
 need(README, "README fidelity", "up to about 0.3 mm/s")
-need(README, "README fidelity", "up to about 0.5 mm")
+need(README, "README fidelity", "0.6 mm (0.43 to 0.62 mm in the three in-socket runs")
 need(README, "README fidelity", "A real plug should stay where it is left (reasoned, not tested on hardware)")
 
 need(README, "README runtime", "All reported results (the gap test, the variants, the demo, Dream-1 and every number in "

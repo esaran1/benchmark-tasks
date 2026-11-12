@@ -230,6 +230,9 @@ need(README, "README fidelity", "up to about 0.3 mm/s")
 need(README, "README fidelity", "up to about 0.5 mm")
 need(README, "README fidelity", "A real plug should stay where it is left (reasoned, not tested on hardware)")
 
+need(README, "README runtime", "All reported results (the gap test, the variants, the demo, Dream-1 and every number in "
+     "this README) come from the simulator's default GPU physics (PhysX on cuda:0).")
+
 # no measurement, no score (whatever the plugs and the tote show)
 if T.score_of({"latched": None, "past_forward_line": True}) != 0.0:
     bad.append("score_of is not 0 without a latched measurement")

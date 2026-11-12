@@ -84,12 +84,13 @@ inspect-robots run --embodiment yam_arena --policy dream \
 
 `task_score` prints the trial's score: 1.0 on success, otherwise `score()` at the end of the episode.
 
-Dream-1 scored 0.0 in its run of this command on the final code and ran all 1,800 steps. The arms moved in over the
-terminal box and the leads at times and stayed off to the sides at others, but no plug was moved: in the last frame all three plugs are still in
-their starting sockets (brown U, black V, grey W) and the tote has not moved, because no measurement with all three
-plugs home in a reversing order was ever made, so the supply never came on. (Two earlier Dream-1 runs, made before
-the fixes described under Scoring and Fidelity and before the instruction was reworded, also scored 0.0 without moving
-a plug; their videos are not used.)
+Dream-1 scored 0.0 in its run of this command on the final code and ran all 1,800 steps (log
+`adhoc_c81196c9.json`). Within the first 6 s its right arm reached in over the gearbox and the right side of the
+terminal box and stayed there to the end; its left arm moved over the left side of the table, near the box and the
+leads. No plug was moved: in the last frame all three plugs are still in their starting sockets (brown U, black V,
+grey W) and the tote has not moved, because no measurement with all three plugs home in a reversing order was made, so
+the supply never came on. (Three earlier Dream-1 runs, made before the fixes described under Scoring and Fidelity or
+before the instruction reached its final wording, also scored 0.0 without moving a plug; their videos are not used.)
 
 ## Scripted demo
 
@@ -237,7 +238,7 @@ the three pairs scores 1.0), which arm moves which plug, the order of moves and 
 The Dream-1 run above took 461 s of wall time for its 1,800 steps on one NVIDIA L40S with the GPU to itself (the GPU
 queue's start and end times), including the simulator's start-up. Scripted runs of the final code went at 1.5 to 1.85 steps/s
 in the gap batch (three simulations sharing the GPU on a busy machine) and 2.3 to 2.8 steps/s for some of the
-variants; the recorded demo took 441 s for its 934 steps (2.1 steps/s), 483 s of wall time with start-up. There are no random seeds: `object_jitter=0`, and the layout is fixed by
+variants; the recorded demo took 441 s for its 934 steps (2.1 steps/s), 483 s of wall time with start-up. All reported results (the gap test, the variants, the demo, Dream-1 and every number in this README) come from the simulator's default GPU physics (PhysX on cuda:0). There are no random seeds: `object_jitter=0`, and the layout is fixed by
 `MOTOR_STATE` (0, the task's layout, by default).
 
 ## Fidelity

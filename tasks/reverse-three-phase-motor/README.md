@@ -259,8 +259,7 @@ variants; the recorded demo took 441 s for its 934 steps (2.1 steps/s), 483 s of
   go, a plug keeps sliding for a few seconds, mostly towards and into its socket. In the final code's runs
   (`gap/creep_traces.json`, the tip depth every second) a plug inside a socket moved up to about 0.3 mm/s for about 5 to
   6 s after the gripper opened and then stopped: `half_home` 11.30 mm at release to 12.63 mm, `half_home13` 13.34 to
-  14.66 mm, about 1.3 mm in all. A loose plug in front of a socket drifted more slowly (mostly 0.04 to 0.16 mm/s, one second at 0.33 mm/s) but for
-  longer (`unplug_one`:
+  14.66 mm, about 1.3 mm in all. A loose plug in front of a socket drifted more slowly on average but for longer (`unplug_one`:
   -0.08 mm when measured to +1.81 mm by the end). The cause is the soft, plastic leads yielding after the push; four
   attempts to stop it in the physics (rest shape frozen after release, plug damping, stiffening released leads,
   pinning untouched leads) either left it or broke the handling. The simulated sockets hold a plug only by their walls
@@ -294,7 +293,8 @@ variants; the recorded demo took 441 s for its 934 steps (2.1 steps/s), 483 s of
   left to right (printed stand-ins for camlock-style power connectors).
   Each socket has a sprung side contact (designed, untested) and no axial spring: a phosphor-bronze leaf spring on one
   side wall, flat from 8 mm deep to the back of the socket (its lead-in shallower than 8 mm), presses sideways on the
-  plug's side once its tip is 8 mm in, taking up the 3 mm of play. Its purpose is to hold a plug at whatever depth from
+  plug's side once its tip is 8 mm in; it stands more than 6 mm off its wall, so it reaches the plug anywhere in the
+  socket's 6 mm of side play and presses it against the opposite wall. Its purpose is to hold a plug at whatever depth from
   8 mm the robot leaves it, so a real plug does not creep; nothing pushes it back out. Only the leaf's inner part, from
   15 mm deep, is wired; it touches the plug's brass tip band only once the tip is 15 mm in, so the circuit is made only
   when the plug is home.

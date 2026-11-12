@@ -229,6 +229,11 @@ need(README, "README real-world", "Its purpose is to hold a plug at whatever dep
 need(README, "README real-world", "flat from 8 mm deep to the back of the socket (its lead-in shallower than 8 mm)")
 need(README, "README real-world", "it touches the plug's brass tip band only once the tip is 15 mm in")
 need(README, "README real-world", "contact band 4 mm wide round its tip, flush with the tip")
+_play = g((T.CAV_W - T.PW) * 1000)             # total side play (mm): the leaf must reach a plug against the far wall
+need(README, "README real-world", f"it stands more than {_play} mm off its wall, so it reaches the plug anywhere in the "
+     f"socket's {_play} mm of side play and presses it against the opposite wall")
+if not ((T.CAV_W - T.PW) / 2 * 1000 <= T.LINE_MM):
+    bad.append("a plug pressed against the far wall would not count as lined up")
 need(README, "README fidelity", "sprung side contact (designed, untested; Real-world build)")
 need(README, "README fidelity", f"about {CREEP_TOTAL:g} mm in all")
 need(README, "README fidelity", "up to about 0.3 mm/s")

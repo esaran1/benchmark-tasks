@@ -83,7 +83,7 @@ if not (cmd and cmd.group(1) == J["instruction"] == T.INSTRUCTION):
 if T.INSTRUCTION != ("This conveyor's motor was just replaced and now runs backwards. Rearrange the supply leads among "
                      "the terminal box's three sockets so that the conveyor runs the way the arrows on its guard point, "
                      "with every plug pushed fully home, then let go. The supply is isolated; it is switched on once you "
-                     "are clear."):
+                     "are clear and every plug is home."):
     bad.append("instruction is not the agreed wording (G4 round 1)")
 
 # the run limit
@@ -167,7 +167,7 @@ fid = ["Not simulated electrically", "computed from the lead order", "fully plas
        "held only by socket walls and friction (no grip, contacts or latch)",
        f"Simulated plugs creep up to about {CREEP_RATE:g} mm/s for a few seconds after release (about {CREEP_TOTAL:g} mm), "
        f"so depth is scored once, {g(T.HOLD_STEPS / T.HZ)} s after the robot has moved clear",
-       "Real ones should not: each socket's sprung side contact grips the pin (reasoned, untested on hardware)"]
+       "Real ones should not: each socket's sprung side contact (designed, untested) holds the pin at any depth"]
 for p in fid:
     need(J["fidelity"], "task.json fidelity", p)
 for p in [f"chains of {T.LEAD_OBJS[0].segments} rigid {cm(T.SEG)} cm segments with bending springs "
@@ -218,8 +218,13 @@ _when = (f"the operator measures {g(T.HOLD_STEPS / T.HZ)} s after the robot has 
 need(J["scoring"], "task.json scoring", "In the real trial " + _when)
 need(README, "README real-world", "The operator measures " + f"{g(T.HOLD_STEPS / T.HZ)} s after the robot has moved "
      f"clear (no part of it within {g(T.RELEASE_MM)} mm of the box, gland or leads)")
-need(README, "README real-world", "a sprung side contact and no axial spring")
-need(J["setup"], "task.json setup", "each socket also has a sprung side contact that grips the plug's tip pin")
+need(README, "README real-world", "sprung side contact (designed, untested) and no axial spring")
+need(J["setup"], "task.json setup", "each socket also has a sprung side contact, designed and untested, that holds the "
+     "plug's tip pin at whatever depth the robot leaves it, so a real plug does not creep; its inner, wired part makes the "
+     "circuit only when the plug is home")
+need(README, "README real-world", "Each socket has a sprung side contact (designed, untested)")
+need(README, "README real-world", "Its purpose is to hold a plug at whatever depth the robot leaves it, so a real plug does not creep")
+need(README, "README fidelity", "sprung side contact (designed, untested; Real-world build)")
 need(README, "README fidelity", f"about {CREEP_TOTAL:g} mm in all")
 need(README, "README fidelity", "up to about 0.3 mm/s")
 need(README, "README fidelity", "up to about 0.5 mm")

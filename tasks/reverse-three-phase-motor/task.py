@@ -38,7 +38,8 @@ TOP = TABLE_TOP[SCENE]
 SCORE_OVER = "end"
 INSTRUCTION = ("This conveyor's motor was just replaced and now runs backwards. Rearrange the supply leads among the "
                "terminal box's three sockets so that the conveyor runs the way the arrows on its guard point, with every "
-               "plug pushed fully home, then let go. The supply is isolated; it is switched on once you are clear.")
+               "plug pushed fully home, then let go. The supply is isolated; it is switched on once you are clear and "
+               "every plug is home.")
 
 # -- starting states: (lead in sockets U, V, W as lead indices, lead slack bow side +1 left / -1 right,
 #    drive offset x, y (mm), drive yaw (deg)); state 0 is the task's layout ----------------------------------------

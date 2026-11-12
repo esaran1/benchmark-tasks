@@ -78,7 +78,7 @@ folder:
 ```bash
 inspect-robots run --embodiment yam_arena --policy dream \
   -E task=task.py -E object_jitter=0 -E control_hz=20 -E cam_width=320 -E cam_height=176 \
-  --instruction "This conveyor's motor was just replaced and now runs backwards. Rearrange the supply leads among the terminal box's three sockets so that the conveyor runs the way the arrows on its guard point, with every plug pushed fully home, then let go. The supply is isolated; it is switched on once you are clear." \
+  --instruction "This conveyor's motor was just replaced and now runs backwards. Rearrange the supply leads among the terminal box's three sockets so that the conveyor runs the way the arrows on its guard point, with every plug pushed fully home, then let go. The supply is isolated; it is switched on once you are clear and every plug is home." \
   --scorer task_score --max-steps 1800 --store-frames --log-dir ~/yam-eval/motor-dream
 ```
 
@@ -263,8 +263,9 @@ variants; the recorded demo took 441 s for its 934 steps (2.1 steps/s), 483 s of
   attempts to stop it in the physics (rest shape frozen after release, plug damping, stiffening released leads,
   pinning untouched leads) either left it or broke the handling. The simulated sockets hold a plug only by their walls
   and friction; there is no grip. A real plug should stay where it is left (reasoned, not tested on hardware): each real
-  socket has a sprung side contact that grips the plug's tip pin (Real-world build), and a lead lying on the table cannot
-  push or pull hard enough to slide the pin through it. Because the plugs are measured once, 1 s after the robot has
+  socket has a sprung side contact (designed, untested; Real-world build) that holds the plug's tip pin at whatever
+  depth the robot leaves it, and a lead lying on the table cannot push or pull hard enough to slide the pin through it.
+  Its inner, wired part makes the circuit only when the plug is home. Because the plugs are measured once, 1 s after the robot has
   moved clear, and that measurement is what is scored and what decides whether the supply comes on, creep after it
   cannot change the score. What remains is the creep between the gripper opening and the measurement: up to about
   0.5 mm. In one run with the last plug pushed to 13.5 mm (`gap/creep_traces.json`, `half_home_at_13.5mm`), brown was
@@ -289,10 +290,11 @@ variants; the recorded demo took 441 s for its 934 steps (2.1 steps/s), 483 s of
 - **Terminal box:** a blue-grey PLA box 60 x 180 x 45 mm screwed to the table, front face 36 cm in front of the arm bases, with
   three single-pole sockets 22 mm wide, 19 mm tall and 26 mm deep at table level, 50 mm apart, marked U, V, W from
   left to right (printed stand-ins for camlock-style power connectors).
-  Each socket has a sprung side contact and no axial spring: a phosphor-bronze leaf spring on one side wall (like a
-  banana-socket sleeve) presses sideways on the plug's tip pin once the pin is about 8 mm in and grips it, so the plug
-  stays wherever it is left; nothing pushes it back out. Only the inner part of the leaf, from 15 mm in, is wired, so
-  the circuit is made only when the plug is home. (Design, not built or tested.)
+  Each socket has a sprung side contact (designed, untested) and no axial spring: a phosphor-bronze leaf spring on one
+  side wall (like a banana-socket sleeve) presses sideways on the plug's tip pin once the pin is about 8 mm in. Its
+  purpose is to hold a plug at whatever depth the robot leaves it, so a real plug does not creep; nothing pushes it
+  back out. Only the inner part of the leaf, from 15 mm in, is wired, so the circuit is made only when the plug is
+  home.
 - **Leads:** three 6 mm round PVC leads 24 cm long (brown, black, grey) from a 30 x 160 x 30 mm dark grey PLA gland plate screwed to
   the table at x 12 to 15 cm, each ending in a 55 x 16 x 14 mm printed plug in the lead's colour (15 g) with a contact
   pin at its tip (a 4 mm brass pin along the plug's axis), and tape marks 8 mm and 15 mm from the tip.

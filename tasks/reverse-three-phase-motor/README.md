@@ -84,8 +84,8 @@ inspect-robots run --embodiment yam_arena --policy dream \
 
 `task_score` prints the trial's score: 1.0 on success, otherwise `score()` at the end of the episode.
 
-Dream-1 scored 0.0 in its run of this command on the final code and ran all 1,800 steps. Both arms reached in over the
-terminal box and the leads for most of the run, but no plug was moved: in the last frame all three plugs are still in
+Dream-1 scored 0.0 in its run of this command on the final code and ran all 1,800 steps. The arms moved in over the
+terminal box and the leads at times and stayed off to the sides at others, but no plug was moved: in the last frame all three plugs are still in
 their starting sockets (brown U, black V, grey W) and the tote has not moved, because no measurement with all three
 plugs home in a reversing order was ever made, so the supply never came on. (Two earlier Dream-1 runs, made before
 the fixes described under Scoring and Fidelity and before the instruction was reworded, also scored 0.0 without moving
@@ -141,8 +141,8 @@ already tested by `cyclic`.
 
 ## Gap test
 
-Before the README, the recorded demo or the media were made, the correct strategy and two wrong ones were run with the
-robot on 10 starting states, each batch under a score rule written down and committed before it ran
+Before the README, the recorded demo or the media were made, the correct strategy was run with the robot on 10
+starting states and the two wrong ones on 9 in the final batch (on 10 in the earlier ones), each batch under a score rule written down and committed before it ran
 (`gap/gap_rules.txt`). The states change the starting order of the leads (all six orders of brown, black and grey over
 U, V and W occur; each is by definition the order that runs backwards), the side the leads bow to, the drive's position
 (up to 10 mm in x and y) and its yaw (up to 5 degrees). Each batch ran a frozen copy of the task folder through
@@ -235,9 +235,9 @@ the three pairs scores 1.0), which arm moves which plug, the order of moves and 
 ## Runtime and seeds
 
 The Dream-1 run above took 461 s of wall time for its 1,800 steps on one NVIDIA L40S with the GPU to itself (the GPU
-queue's start and end times), including the simulator's start-up. Scripted runs go at about 3 steps/s: physics and
-rendering of the three leads and both robots take most of it, the scorer's checks about 13% (profiled over 300 demo
-steps). The scripted demo finishes in 934 steps. There are no random seeds: `object_jitter=0`, and the layout is fixed by
+queue's start and end times), including the simulator's start-up. Scripted runs of the final code went at 1.5 to 1.85 steps/s
+in the gap batch (three simulations sharing the GPU on a busy machine) and 2.3 to 2.8 steps/s for some of the
+variants; the recorded demo took 441 s for its 934 steps (2.1 steps/s), 483 s of wall time with start-up. There are no random seeds: `object_jitter=0`, and the layout is fixed by
 `MOTOR_STATE` (0, the task's layout, by default).
 
 ## Fidelity
@@ -255,21 +255,27 @@ steps). The scripted demo finishes in 934 steps. There are no random seeds: `obj
   10.7 mm in crept home in about 20 s); the plastic leads stop that. The leads start in a fixed bow so each has 6 cm of
   slack, enough for any plug to reach any socket.
 - **Plugs creep after release (a simulation artifact), so scoring uses the depths at release.** Once the robot has let
-  go, a plug keeps sliding slowly, mostly towards and into its socket: inside a socket about 0.07 to 0.09 mm/s (a plug
-  left at 13.3 to 13.5 mm reached 15.3 mm 22 to 28 s later), and a loose plug in front of one about 0.05 to 0.12 mm/s.
-  The cause is the soft, plastic leads yielding after the push; four attempts to stop it in the physics (rest shape
-  frozen after release, plug damping, stiffening released leads, pinning untouched leads) either left it or broke the
-  handling. A real plug should stay where it is left (reasoned, not tested on hardware): a real PVC lead does relax a little
-  after being bent, but the force it can exert along a short lead is small, far below what it takes to slide a
-  push-fit plug in its socket, which the plug's grip and its friction on the table resist. Because the plugs are measured once, 1 s after the robot is clear, and
-  that measurement is what is scored and what decides whether the supply comes on, creep after it cannot change the
-  score. What remains is the creep in the 1 s between the robot clearing and the
-  measurement: about 0.2 to 0.3 mm in the runs below (`half_home13`: 13.57 mm when the robot was clear, 13.77 mm when
-  measured, 14.66 mm at the end; score 0.5 throughout). Run to run, the simulated depths also vary by about 1 to 2 mm
-  for the same script, so every depth in this README is approximate.
-- **Plugs and sockets:** plugs are rigid 55 x 16 x 14 mm boxes with no electrical contact pins or latch, held in a
-  socket only by its walls and friction. Sockets are 22 x 19 mm and 26 mm deep, so a plug has 3 mm of play each side and 5 mm above it;
-  real plug-in terminal blocks fit tighter. Seating is judged by depth.
+  go, a plug keeps sliding for a few seconds, mostly towards and into its socket. In the final code's runs
+  (`gap/creep_traces.json`, the tip depth every second) a plug inside a socket moved up to about 0.3 mm/s for about 5 to
+  6 s after the gripper opened and then stopped: `half_home` 11.30 mm at release to 12.63 mm, `half_home13` 13.34 to
+  14.66 mm, about 1.3 mm in all. A loose plug in front of a socket drifted more slowly but for longer (`unplug_one`:
+  -0.08 mm when measured to +1.81 mm by the end). The cause is the soft, plastic leads yielding after the push; four
+  attempts to stop it in the physics (rest shape frozen after release, plug damping, stiffening released leads,
+  pinning untouched leads) either left it or broke the handling. The simulated sockets hold a plug only by their walls
+  and friction; there is no grip. A real plug should stay where it is left (reasoned, not tested on hardware): each real
+  socket has a sprung side contact that grips the plug's tip pin (Real-world build), and a lead lying on the table cannot
+  push or pull hard enough to slide the pin through it. Because the plugs are measured once, 1 s after the robot has
+  moved clear, and that measurement is what is scored and what decides whether the supply comes on, creep after it
+  cannot change the score. What remains is the creep between the gripper opening and the measurement: up to about
+  0.5 mm. In one run with the last plug pushed to 13.5 mm (`gap/creep_traces.json`, `half_home_at_13.5mm`), brown was
+  14.65 mm in as the gripper opened (robot 1.4 mm away), 14.93 mm when the robot was clear and 15.16 mm when measured,
+  so it counted as home and the run scored 1.0; in the real build that plug would have stayed about 14.65 mm in and
+  scored 0.5. So a plug left 0.3 to 0.5 mm short of home can count as home. That is about what a tape mark or a ruler
+  resolves, and no strategy can aim for it. Run to run, the simulated depths also vary by about 1 to 2 mm for the same
+  script, so every depth in this README is approximate.
+- **Plugs and sockets:** plugs are rigid 55 x 16 x 14 mm boxes with no electrical contact pins, grip or latch, held in
+  a socket only by its walls and friction. Sockets are 22 x 19 mm and 26 mm deep, so a plug has 3 mm of play each side and 5 mm above it;
+  real plug-in terminal blocks fit tighter, and the real build's sockets grip the pin. Seating is judged by depth.
 - **Fixed parts:** the terminal box, motor, gearbox, conveyor and gland are one fixed body (screwed down in the real
   build).
 
@@ -283,10 +289,13 @@ steps). The scripted demo finishes in 934 steps. There are no random seeds: `obj
 - **Terminal box:** a blue-grey PLA box 60 x 180 x 45 mm screwed to the table, front face 36 cm in front of the arm bases, with
   three single-pole sockets 22 mm wide, 19 mm tall and 26 mm deep at table level, 50 mm apart, marked U, V, W from
   left to right (printed stand-ins for camlock-style power connectors).
-  Each socket has a sprung contact that a plug's tip pin reaches once it is 15 mm in.
+  Each socket has a sprung side contact and no axial spring: a phosphor-bronze leaf spring on one side wall (like a
+  banana-socket sleeve) presses sideways on the plug's tip pin once the pin is about 8 mm in and grips it, so the plug
+  stays wherever it is left; nothing pushes it back out. Only the inner part of the leaf, from 15 mm in, is wired, so
+  the circuit is made only when the plug is home. (Design, not built or tested.)
 - **Leads:** three 6 mm round PVC leads 24 cm long (brown, black, grey) from a 30 x 160 x 30 mm dark grey PLA gland plate screwed to
   the table at x 12 to 15 cm, each ending in a 55 x 16 x 14 mm printed plug in the lead's colour (15 g) with a contact
-  pin at its tip, and tape marks 8 mm and 15 mm from the tip.
+  pin at its tip (a 4 mm brass pin along the plug's axis), and tape marks 8 mm and 15 mm from the tip.
 - **Conveyor:** a yellow PLA guard plate along the belt's front edge with two black painted arrows pointing right, a red
   tape line 6 cm left and a green tape line 6 cm right of the tote's starting centre; a blue PLA tote 6 x 8 x 4 cm
   (150 g) on the belt.
@@ -295,10 +304,11 @@ steps). The scripted demo finishes in 934 steps. There are no random seeds: `obj
   as soon as the robot comes within 20 mm of them. The belt stops at end stops 130 mm either side of the tote's start.
   Trials are safe: the supply is 24 V and off whenever the robot is near the leads.
 
-**Measuring in the real trial.** The operator measures each plug's depth 1 s after the robot's last movement clear of
-the box, gland and leads (no part of the robot within 20 mm of them), using the depth marks or a ruler, and notes which
-plug is in which socket, before switching the supply on. That measurement is scored. If the robot comes back within
-20 mm, the operator switches off, and measures again 1 s after it is clear once more.
+**Measuring in the real trial.** The operator measures 1 s after the robot has moved clear (no part of it within 20 mm
+of the box, gland or leads): a photo of the plugs' depth marks taken at that moment, read afterwards, gives each plug's
+socket and depth (a ruler can check it once the trial is over), before the supply is switched on. That measurement is
+scored. If the robot comes back within 20 mm, the operator switches off, and takes a new photo 1 s after the robot has
+moved clear again.
 
 Reset: pull the three plugs out, push brown into U, black into V and grey into W until the 15 mm mark is hidden (24 mm
 in), lay each lead in its bow to the left as in the setup, bring the tote back to the centre of the belt between the

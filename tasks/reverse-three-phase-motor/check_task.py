@@ -41,6 +41,23 @@ def g(v: float) -> str:
 mm = lambda v: g(v * 1000)  # noqa: E731
 cm = lambda v: g(v * 100)   # noqa: E731
 
+# -- the creep figures quoted in the fidelity note, checked against the saved final-code traces ------------------------
+CREEP_RATE, CREEP_TOTAL = 0.3, 1.3      # mm/s (peak, "about") and mm (in all, "about"), for a plug inside a socket
+_tr = json.loads((HERE / "gap" / "creep_traces.json").read_text())["runs"]
+for _name in ("half_home", "half_home13"):
+    _rows = [r for r in _tr[_name]["trace"] if r[0] >= 820]            # from the gripper opening (robot about 1 mm away)
+    _d = [b[1] - a[1] for a, b in zip(_rows, _rows[1:])]               # mm per 1 s sample
+    _total = _rows[-1][1] - _rows[0][1]
+    _moving = sum(1 for x in _d if x > 0.01)
+    if not (max(_d) <= CREEP_RATE + 0.005 and max(_d) >= CREEP_RATE - 0.1 and abs(_total - CREEP_TOTAL) <= 0.1
+            and 4 <= _moving <= 7 and _d[-5:] == [0.0] * 5):
+        bad.append(f"creep figures do not match the {_name} trace: peak {max(_d):.2f} mm/s, total {_total:.2f} mm, "
+                   f"{_moving} s moving")
+_h = _tr["half_home_at_13.5mm"]["trace"]
+_gain = _tr["half_home_at_13.5mm"]["latched_brown_mm"] - next(r[1] for r in _h if r[0] == 820)
+if not (0.4 <= _gain <= 0.55):
+    bad.append(f"the README's 'up to about 0.5 mm' between release and measurement: trace shows {_gain:.2f} mm")
+
 # -- form ------------------------------------------------------------------------------------------------------------
 for where, text in (("README", README), ("task.json", json.dumps(J))):
     for marker in ("{{", "TODO", "XX", "INSTR", "DREAMRESULT", "DEMORESULT", "VARIANTS", "GAPTEST", "RUNTIME",
@@ -146,10 +163,11 @@ if abs(T.FWD_MOVE - (T.LINE_Y + T.TOTE[1] / 2)) > 1e-12:
     bad.append("FWD_MOVE is not the distance for the tote's trailing face to pass the green line")
 
 # -- fidelity --------------------------------------------------------------------------------------------------------
-fid = ["Not simulated electrically", "computed from the lead order", "fully plastic (simplified)",
-       f"{T.LEAD_OBJS[0].segments} rigid {cm(T.SEG)} cm segments", "no electrical contact pins or latch",
-       f"Simulated plugs creep up to 0.09 mm/s after release, so depth is scored once, {g(T.HOLD_STEPS / T.HZ)} s after "
-       "the robot is clear", "Real ones should not", "(reasoned, untested on hardware)"]
+fid = ["Not simulated electrically", "computed from the lead order", "fully plastic", f"rigid {cm(T.SEG)} cm segments",
+       "held only by socket walls and friction (no grip, contacts or latch)",
+       f"Simulated plugs creep up to about {CREEP_RATE:g} mm/s for a few seconds after release (about {CREEP_TOTAL:g} mm), "
+       f"so depth is scored once, {g(T.HOLD_STEPS / T.HZ)} s after the robot has moved clear",
+       "Real ones should not: each socket's sprung side contact grips the pin (reasoned, untested on hardware)"]
 for p in fid:
     need(J["fidelity"], "task.json fidelity", p)
 for p in [f"chains of {T.LEAD_OBJS[0].segments} rigid {cm(T.SEG)} cm segments with bending springs "
@@ -195,11 +213,16 @@ def _rep(where, released=True, still=True, tote_mm=0.0, touched=True, latched_at
 # the measurement time: 1 s after the robot is clear, in the code and in both texts
 if abs(T.HOLD_STEPS / T.HZ - 1.0) > 1e-12:
     bad.append("the latch time HOLD_STEPS / HZ is not 1 s")
-_when = (f"the operator measures each plug's depth {g(T.HOLD_STEPS / T.HZ)} s after the robot's last movement clear of "
-         "the box, gland and leads, using the depth marks or a ruler, before switching the supply on")
+_when = (f"the operator measures {g(T.HOLD_STEPS / T.HZ)} s after the robot has moved clear (no part of it within "
+         f"{g(T.RELEASE_MM)} mm of the box, gland or leads)")
 need(J["scoring"], "task.json scoring", "In the real trial " + _when)
-need(README, "README real-world", "The operator measures each plug's depth " + f"{g(T.HOLD_STEPS / T.HZ)} s after the "
-     "robot's last movement clear of the box, gland and leads")
+need(README, "README real-world", "The operator measures " + f"{g(T.HOLD_STEPS / T.HZ)} s after the robot has moved "
+     f"clear (no part of it within {g(T.RELEASE_MM)} mm of the box, gland or leads)")
+need(README, "README real-world", "a sprung side contact and no axial spring")
+need(J["setup"], "task.json setup", "each socket also has a sprung side contact that grips the plug's tip pin")
+need(README, "README fidelity", f"about {CREEP_TOTAL:g} mm in all")
+need(README, "README fidelity", "up to about 0.3 mm/s")
+need(README, "README fidelity", "up to about 0.5 mm")
 need(README, "README fidelity", "A real plug should stay where it is left (reasoned, not tested on hardware)")
 
 # no measurement, no score (whatever the plugs and the tote show)
